@@ -2004,7 +2004,7 @@ If you still have an issue, or are seeing some "strange data" or log output, you
  
 - My personal preference is for the [C# Style Guidelines](https://learn.microsoft.com/en-us/dotnet/standard/design-guidelines/) but the idea is to get this into ESPHome and [their guidelines](https://esphome.io/guides/contributing.html#codebase-standards) are different.  It's currently a bit of a mishmash until I can refactor over to ESPHome's style completely.
 
-- Huge shout-out to https://github.com/syssi/esphome-seplos-bms who implemented an initial basic decode letting me know this was possible, and also compiled some documentation which was immensely useful.  Without which I might never have gotten started on, or been motivated to finish, this more complete implementation of the protocol.
+- Huge shout-out to https://github.com/syssi/esphome-seplos-bms who implemented an initial basic decode letting me know this was possible, and also compiled some documentation which was immensely useful.  Without which I might never have gotten started on, or been motivated to finish, this more complete reverse-engineering and implementation of the protocol.
 
 # Helping Out
 
