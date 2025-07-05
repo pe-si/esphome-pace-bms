@@ -251,6 +251,7 @@ However, I'd like to keep a full list here if only for search engine discoverabi
     - `protocol_commandset: 0x25`
   - notes:
     - Thank you Mateusz for reporting.
+    - The balancing information readouts are swapped between cells 1-8 and cells 9-16 as compared to the physical hardware.  So if you see cell 1 as balancing, it is actually physical cell 9 for example, and vice versa.  Thank you Haso-M for reporting.  
 
 - **Tewaycell All-in-one Mobile ESS Hybrid off-grid Inverter**
   - BMS hardware versions: 
