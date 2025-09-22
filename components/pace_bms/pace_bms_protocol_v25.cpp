@@ -99,7 +99,8 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 
 	AnalogInformationUserDefinedValue = ReadHexEncodedByte(response, byteOffset);
 	if (AnalogInformationUserDefinedValue != 3 && 
-		AnalogInformationUserDefinedValue != 9)
+	    AnalogInformationUserDefinedValue != 9 &&
+	    AnalogInformationUserDefinedValue != 2)
 	{
 		LogWarning("Response contains a constant with an unexpected value, this may be an incorrect protocol variant. This will be ignored, but please file an issue report with full logs at VERY_VERBOSE level.");
 		//return false;
@@ -116,6 +117,11 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 	if (AnalogInformationUserDefinedValue == 9)
 	{
 		byteOffset += 28;
+	}
+	// reported by RoganDawes that Greenrich U-P5000 packs have an extra 2 bytes at the end containing unknown information
+	else if (AnalogInformationUserDefinedValue == 2)
+	{
+		byteOffset += 2;
 	}
 
 	if (byteOffset != payloadLen + 13)
@@ -645,6 +651,11 @@ bool PaceBmsProtocolV25::ProcessReadStatusInformationResponse(const uint8_t busI
 	// reported by f3nix that a BMS variant used in some wall-mount packs is 0x25 compatible but contains some extra
 	// garbage in the response (he partly decoded it but it was not of interest) so skip that before doing a length check
 	if (AnalogInformationUserDefinedValue == 9)
+	{
+		byteOffset += 2;
+	}
+	// reported by RoganDawes that Greenrich U-P5000 packs have an extra 2 bytes at the end containing unknown information
+	if (AnalogInformationUserDefinedValue == 2)
 	{
 		byteOffset += 2;
 	}
