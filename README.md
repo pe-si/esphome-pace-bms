@@ -410,8 +410,6 @@ external_components:
     refresh: 1s
 ```
 
-This second source section is needed to work around a design bug in the ESPHome DateTime component, it will be removed / become unnecessary once [the PR](https://github.com/esphome/esphome/pull/7425) to fix that goes through.
-
 ## UART and pace_bms
 
 Next, lets configure the UART and pace_bms component to speak with your BMS.
