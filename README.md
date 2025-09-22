@@ -275,6 +275,18 @@ However, I'd like to keep a full list here if only for search engine discoverabi
   - notes:
     - Thank you RoganDawes for reporting.
 
+- **FSP MES PS5120E**
+  - BMS hardware versions: 
+    - **[MES PS5120E](https://www.fsp-ps.de/en/product/pvinverter/1643012820-1712.html)** / BMS: **unconfirmed**
+    - SKUs: PS5120E, PS 5120 E
+    - Related Models: PS5120ES, PS 5120 ES
+      - ![GREENRICH U-P5000](images/fsp-mes-ps5120e-320.jpg)
+  - required `pace_bms` config: 
+    - `protocol_commandset: 0x25`
+  - notes:
+    - Thank you MichaelEFlip for reporting.
+    - Not confirmed yet that the ReadStatusInformation command will return proper results, but this BMS seems to be running the same firmware version as the GREENRICH U-P5000 which is confirmed working.
+
 ## Untested:
 
 TDT-6016
