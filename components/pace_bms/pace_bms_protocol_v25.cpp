@@ -79,7 +79,12 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 	analogInformation.temperatureCount = ReadHexEncodedByte(response, byteOffset);
 	if (analogInformation.temperatureCount > MAX_TEMP_COUNT)
 	{
-		LogWarning("Response contains more temperature readings than are supported, results will be truncated");
+		// we haven't read the UDF yet but at least we'll only "info" rather than "warn" on subsequent iterations
+		// todo: look-ahead to the UDF here and see if we can determine if this is expected or not even on the first invocation
+		if(AnalogInformationUserDefinedValue == 4) // Eenovance/Sunsynk has 8 temperature readings
+			LogInformation("Response contains more temperature readings than are supported, but this is expected for this protocol variant; the 7th and 8th readings will be ignored");
+		else
+			LogWarning("Response contains more temperature readings than are supported, results will be truncated");
 	}
 	for (int i = 0; i < analogInformation.temperatureCount; i++)
 	{
