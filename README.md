@@ -287,10 +287,6 @@ However, I'd like to keep a full list here if only for search engine discoverabi
     - Thank you MichaelEFlip for reporting.
     - Not confirmed yet that the ReadStatusInformation command will return proper results, but this BMS seems to be running the same firmware version as the GREENRICH U-P5000 which is confirmed working.
 
-## Untested:
-
-TDT-6016
-
 # What ESPs and RPs are Supported?
 
 Both ESP8266 and ESP32 are supported, though an ESP32 class device is recommended.  The RP2040 (Raspberry Pi Pico W) should also work but I haven't tested it.
