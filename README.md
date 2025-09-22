@@ -409,16 +409,6 @@ external_components:
     components: [ pace_bms ]
     refresh: 1s
 ```
-If you're exposing the BMS date/time sensor you might also need to include this:
-```yaml
-external_components:
-  - source:
-      type: git
-      url: https://github.com/nkinnan/esphome
-      ref: "make_time_dependency_optional"
-    components: [ datetime ]
-    refresh: 1s
-```
 
 This second source section is needed to work around a design bug in the ESPHome DateTime component, it will be removed / become unnecessary once [the PR](https://github.com/esphome/esphome/pull/7425) to fix that goes through.
 
