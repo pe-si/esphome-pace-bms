@@ -279,9 +279,9 @@ const std::string PaceBmsProtocolV25::DecodeStatusValue(const uint8_t val)
 {
 	std::string str;
 
-	if ((val & SF_HeaterEnabledBit) != 0)
+	if ((val & SF_HeaterActiveBit) != 0)
 	{
-		str.append("Heater Enabled; "); 
+		str.append("Heater Active; "); 
 	}
 	if ((val & SF_AlternateCurrentInBit) != 0)
 	{
