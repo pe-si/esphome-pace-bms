@@ -91,6 +91,12 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 		analogInformation.temperaturesTenthsCelcius[i] = (temperature - 2730);
 	}
 
+	// skip over any additional temperature readings we don't support
+	if (analogInformation.temperatureCount > MAX_TEMP_COUNT)
+	{
+		byteOffset += (analogInformation.temperatureCount - MAX_TEMP_COUNT) * 4;
+	}
+
 	analogInformation.currentMilliamps = ReadHexEncodedSShort(response, byteOffset) * 10;
 
 	analogInformation.totalVoltageMillivolts = ReadHexEncodedUShort(response, byteOffset);
@@ -127,7 +133,7 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 	// reported by johnmsole that Eenovance/Sunsynk packs have an extra 12 bytes at the end containing unknown information
 	else if (AnalogInformationUserDefinedValue == 0xD0)
 	{
-		byteOffset += 12;
+		byteOffset += 4; // actually 12, but we skipped past the extra temperatures already
 	}
 
 	if (byteOffset != payloadLen + 13)
