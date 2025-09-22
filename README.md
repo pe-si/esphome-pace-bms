@@ -264,6 +264,17 @@ However, I'd like to keep a full list here if only for search engine discoverabi
   - notes:
     - Thank you tbrasser for reporting.
 
+- **GREENRICH U-P5000**
+  - BMS hardware versions: 
+    - **[U-P5000](https://greenrich.co.za/product/au7500-up5000-lithium-battery/)** / BMS: **P16S150A-17900-2.05W**
+    - SKUs: AU7500, UP5000, U-P5000
+    - Related Models: AU5500, UP3686, U-P3686, AU9000, UP6100, U-P6100
+      - ![GREENRICH U-P5000](images/greenrich-up5000-320.png)
+  - required `pace_bms` config: 
+    - `protocol_commandset: 0x25`
+  - notes:
+    - Thank you RoganDawes for reporting.
+
 ## Untested:
 
 TDT-6016
