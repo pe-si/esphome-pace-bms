@@ -325,7 +325,7 @@ const std::string PaceBmsProtocolV25::DecodeConfigurationStatusValue(const uint8
 	}
 	if ((val & CF_StaticBalanceBit) != 0)
 	{
-		str.append("Static Balance; "); // "Enabled" ??????????????
+		str.append("Static Balance ('Enabled'?); "); // "Enabled" ??????????????
 	}
 	if ((val & CF_LedAlarmEnabledBit) != 0)
 	{
