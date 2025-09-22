@@ -359,15 +359,15 @@ const std::string PaceBmsProtocolV25::DecodeFaultStatusValue(const uint8_t val)
 {
 	std::string str;
 
-	if ((val & FF_HeaterFaultBit) != 0)
+	if ((val & FF_HeaterBit) != 0)
 	{
 		str.append("Heater Fault; ");
 	}
-	if ((val & FF_CCBFaultBit) != 0)
+	if ((val & FF_CCBBit) != 0)
 	{
 		str.append("CCB Fault; ");
 	}
-	if ((val & FF_VCCSamplingFaultBit) != 0)
+	if ((val & FF_VCCSamplingBit) != 0)
 	{
 		str.append("VCC Sampling Fault; ");
 	}
@@ -375,7 +375,7 @@ const std::string PaceBmsProtocolV25::DecodeFaultStatusValue(const uint8_t val)
 	{
 		str.append("Cell fault; ");
 	}
-	if ((val & FF_CommFaultBit) != 0)
+	if ((val & FF_CommBit) != 0)
 	{
 		str.append("Comm Fault; "); //only on later PACE 
 	}
