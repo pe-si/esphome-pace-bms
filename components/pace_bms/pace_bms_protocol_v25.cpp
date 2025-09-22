@@ -198,9 +198,9 @@ const std::string PaceBmsProtocolV25::DecodeProtectionStatus1Value(const uint8_t
 {
 	std::string str;
 
-	if ((val & P1F_UndefinedProtect1Bit) != 0)
+	if ((val & P1F_ChargerHighVoltageInProtect1Bit) != 0)
 	{
-		str.append("Charger High Voltage IN; ");
+		str.append("Charger High Voltage In Protect; ");
 	}
 	if ((val & P1F_ShortCircuitProtect1Bit) != 0)
 	{
@@ -279,13 +279,13 @@ const std::string PaceBmsProtocolV25::DecodeStatusValue(const uint8_t val)
 {
 	std::string str;
 
-	if ((val & SF_HeartIndicatorBit) != 0)
+	if ((val & SF_HeaterEnabledBit) != 0)
 	{
-		str.append("Heater Enabled; "); //***
+		str.append("Heater Enabled; "); 
 	}
-	if ((val & SF_UndefinedStatusBit7) != 0)
+	if ((val & SF_AlternateCurrentInBit) != 0)
 	{
-		str.append("Alternate Current IN; ");
+		str.append("Alternate Current In; ");
 	}
 	if ((val & SF_ChargingBit) != 0)
 	{
@@ -293,7 +293,7 @@ const std::string PaceBmsProtocolV25::DecodeStatusValue(const uint8_t val)
 	}
 	if ((val & SF_PositiveNegativeTerminalsReversedBit) != 0)
 	{
-		str.append("Positive/Negative Terminals Reversed; "); //***
+		str.append("Positive/Negative Terminals Reversed; "); 
 	}
 	if ((val & SF_DischargingBit) != 0)
 	{
@@ -323,7 +323,7 @@ const std::string PaceBmsProtocolV25::DecodeConfigurationStatusValue(const uint8
 	{
 		str.append("Undefined ConfigurationStatus Bit8 Set; ");
 	}
-	if ((val & CF_UndefinedConfigurationStatusBit7) != 0)
+	if ((val & CF_StaticBalanceBit) != 0)
 	{
 		str.append("Static Balance; ");
 	}
@@ -359,15 +359,15 @@ const std::string PaceBmsProtocolV25::DecodeFaultStatusValue(const uint8_t val)
 {
 	std::string str;
 
-	if ((val & FF_UndefinedFaultStatusBit8) != 0)
+	if ((val & FF_HeaterFaultBit) != 0)
 	{
 		str.append("Heater Fault; ");
 	}
-	if ((val & FF_UndefinedFaultStatusBit7) != 0)
+	if ((val & FF_CCBFaultBit) != 0)
 	{
 		str.append("CCB Fault; ");
 	}
-	if ((val & FF_SampleBit) != 0)
+	if ((val & FF_VCCSamplingFaultBit) != 0)
 	{
 		str.append("VCC Sampling Fault; ");
 	}
@@ -375,7 +375,7 @@ const std::string PaceBmsProtocolV25::DecodeFaultStatusValue(const uint8_t val)
 	{
 		str.append("Cell fault; ");
 	}
-	if ((val & FF_UndefinedFaultStatusBit4) != 0)
+	if ((val & FF_CommFaultBit) != 0)
 	{
 		str.append("Comm Fault; "); //only on later PACE 
 	}
