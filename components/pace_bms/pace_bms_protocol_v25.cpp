@@ -100,7 +100,8 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 	AnalogInformationUserDefinedValue = ReadHexEncodedByte(response, byteOffset);
 	if (AnalogInformationUserDefinedValue != 3 && 
 	    AnalogInformationUserDefinedValue != 9 &&
-	    AnalogInformationUserDefinedValue != 2)
+	    AnalogInformationUserDefinedValue != 2 &&
+	    AnalogInformationUserDefinedValue != 0xD0)
 	{
 		LogWarning("Response contains a constant with an unexpected value, this may be an incorrect protocol variant. This will be ignored, but please file an issue report with full logs at VERY_VERBOSE level.");
 		//return false;
@@ -122,6 +123,11 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 	else if (AnalogInformationUserDefinedValue == 2)
 	{
 		byteOffset += 2;
+	}
+	// reported by johnmsole that Eenovance/Sunsynk packs have an extra 12 bytes at the end containing unknown information
+	else if (AnalogInformationUserDefinedValue == 0xD0)
+	{
+		byteOffset += 12;
 	}
 
 	if (byteOffset != payloadLen + 13)
@@ -658,6 +664,11 @@ bool PaceBmsProtocolV25::ProcessReadStatusInformationResponse(const uint8_t busI
 	if (AnalogInformationUserDefinedValue == 2)
 	{
 		byteOffset += 2;
+	}
+	// reported by johnmsole that Eenovance/Sunsynk packs have an extra 6 bytes at the end containing unknown information
+	else if (AnalogInformationUserDefinedValue == 0xD0)
+	{
+		byteOffset += 6;
 	}
 
 	if (byteOffset != payloadLen + 13)
