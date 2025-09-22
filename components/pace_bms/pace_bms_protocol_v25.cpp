@@ -124,7 +124,7 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 	{
 		byteOffset += 2;
 	}
-	// reported by johnmsole that Eenovance/Sunsynk packs have an extra 12 bytes at the end containing unknown information
+	// reported by johnmsole that Eenovance/Sunsynk packs have an 2 extra temperatures (2 * 4 bytes) plus an extra 4 bytes at the end containing unknown information for a total of 12 extra bytes
 	else if (AnalogInformationUserDefinedValue == 0xD0)
 	{
 		byteOffset += 4; // actually 12, but we skipped past the extra temperatures already
