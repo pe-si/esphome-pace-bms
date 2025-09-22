@@ -200,7 +200,7 @@ const std::string PaceBmsProtocolV25::DecodeProtectionStatus1Value(const uint8_t
 
 	if ((val & P1F_UndefinedProtect1Bit) != 0)
 	{
-		str.append("Undefined ProtectStatus1 Bit8; ");
+		str.append("Charger High Voltage IN; ");
 	}
 	if ((val & P1F_ShortCircuitProtect1Bit) != 0)
 	{
@@ -281,11 +281,11 @@ const std::string PaceBmsProtocolV25::DecodeStatusValue(const uint8_t val)
 
 	if ((val & SF_HeartIndicatorBit) != 0)
 	{
-		str.append("('Heart' indicator?); "); //***
+		str.append("Heater Enabled; "); //***
 	}
 	if ((val & SF_UndefinedStatusBit7) != 0)
 	{
-		str.append("(Undefined Status Bit7 - Possibly this means 'Heater', or 'AC in'); ");
+		str.append("Alternate Current IN; ");
 	}
 	if ((val & SF_ChargingBit) != 0)
 	{
@@ -325,7 +325,7 @@ const std::string PaceBmsProtocolV25::DecodeConfigurationStatusValue(const uint8
 	}
 	if ((val & CF_UndefinedConfigurationStatusBit7) != 0)
 	{
-		str.append("Undefined ConfigurationStatus Bit7 Set; ");
+		str.append("Static Balance; ");
 	}
 	if ((val & CF_LedAlarmEnabledBit) != 0)
 	{
@@ -361,15 +361,15 @@ const std::string PaceBmsProtocolV25::DecodeFaultStatusValue(const uint8_t val)
 
 	if ((val & FF_UndefinedFaultStatusBit8) != 0)
 	{
-		str.append("Undefined FaultStatus Bit8 Fault; ");
+		str.append("Heater Fault; ");
 	}
 	if ((val & FF_UndefinedFaultStatusBit7) != 0)
 	{
-		str.append("Undefined FaultStatus Bit7 Fault; ");
+		str.append("CCB Fault; ");
 	}
 	if ((val & FF_SampleBit) != 0)
 	{
-		str.append("Sample (ADC?) fault; ");
+		str.append("VCC Sampling Fault; ");
 	}
 	if ((val & FF_CellBit) != 0)
 	{
@@ -377,7 +377,7 @@ const std::string PaceBmsProtocolV25::DecodeFaultStatusValue(const uint8_t val)
 	}
 	if ((val & FF_UndefinedFaultStatusBit4) != 0)
 	{
-		str.append("Undefined FaultStatus Bit4 Fault; ");
+		str.append("Comm Fault; "); //only on later PACE 
 	}
 	if ((val & FF_NTCBit) != 0)
 	{
