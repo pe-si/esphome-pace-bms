@@ -85,14 +85,6 @@ external_components:
     components: [ pace_bms ]
     refresh: 1s
 
-  # this can be removed once the PR goes through: https://github.com/esphome/esphome/pull/7425
-  - source:
-      type: git
-      url: https://github.com/nkinnan/esphome
-      ref: "make_time_dependency_optional"
-    components: [ datetime ]
-    refresh: 1s
-
 uart:
   id: uart_0
   baud_rate: 9600 
