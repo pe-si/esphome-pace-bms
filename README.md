@@ -1,7 +1,7 @@
 
 # esphome-pace-bms
 
-This is an **ESPHome** component that supports "**paceic**" protocol **version 20 and 25** which is used by seemingly the majority of low-cost rack-mount and wall-mount Lithium Iron (LiFePO4) battery packs (but occasionally a different chemistry as well) manufactured in SE Asia.  The BMS can be communicated with over **RS485** or **RS232** and is manufactured by PACE (or is a clone).  It's used by many, many different manufacturers under different labels and branding.
+This is an **ESPHome** component that supports "**paceic**" protocol **version 20 and 25** which is used by seemingly the majority of low-cost rack-mount and wall-mount Lithium Iron (LiFePO4) battery packs (but occasionally a different chemistry as well) manufactured in SE Asia.  Version 20 of this protocol is also sometimes called "PYLON" or "PylonTech".  The BMS can be communicated with over **RS485** or **RS232** and is manufactured by PACE (or is a clone).  It's used by many, many different manufacturers under different labels and branding.
 
 The protocol is characterized by both requests and responses beginning with a '**~**' (tilde) character followed by two ASCII numbers (usually) either "**20**", "**21**" or "**25**" and ending with a '**\r**' (carriage return) character.  
 
@@ -45,7 +45,7 @@ Example PACE BMS board:
 
 # What Is Paceic Protocol Version 20
 
-This protocol version is spoken by older battery packs and has several variants, with firmware customized by individual manufacturers.  Three protocol variants are currently known/supported:
+Also sometimes called "PYLON" or "PylonTech", this protocol version is spoken by older battery packs and has several variants, with firmware customized by individual manufacturers.  Three protocol variants are currently known/supported:
  - **EG4**
  - **PYLON**
  - **SEPLOS**
