@@ -190,7 +190,7 @@ public:
 	//     StatusInformation.protection_value1
 	enum StatusInformation_Protection1Flags
 	{
-		P1F_UndefinedProtect1Bit = (1 << 7),
+		P1F_ChargerHighVoltageInProtect1Bit = (1 << 7),
 		P1F_ShortCircuitProtect1Bit = (1 << 6),
 		P1F_DischargeCurrentProtect1Bit = (1 << 5),
 		P1F_ChargeCurrentProtect1Bit = (1 << 4),
@@ -218,8 +218,8 @@ public:
 	//     StatusInformation.system_value
 	enum StatusInformation_SystemFlags
 	{
-		SF_HeartIndicatorBit = (1 << 7),
-		SF_UndefinedStatusBit7 = (1 << 6),
+		SF_HeaterActiveBit = (1 << 7),
+		SF_AlternateCurrentInBit = (1 << 6),
 		SF_ChargingBit = (1 << 5),
 		SF_PositiveNegativeTerminalsReversedBit = (1 << 4),
 		SF_DischargingBit = (1 << 3),
@@ -233,7 +233,7 @@ public:
 	enum StatusInformation_ConfigurationFlags
 	{
 		CF_UndefinedConfigurationStatusBit8 = (1 << 7),
-		CF_UndefinedConfigurationStatusBit7 = (1 << 6),
+		CF_StaticBalanceBit = (1 << 6),
 		CF_LedAlarmEnabledBit = (1 << 5),
 		CF_ChargeCurrentLimiterEnabledBit = (1 << 4),
 		CF_ChargeCurrentLimiterLowGearSetBit = (1 << 3),
@@ -246,11 +246,11 @@ public:
 	//     StatusInformation.fault_value
 	enum StatusInformation_FaultFlags
 	{
-		FF_UndefinedFaultStatusBit8 = (1 << 7),
-		FF_UndefinedFaultStatusBit7 = (1 << 6),
-		FF_SampleBit = (1 << 5),
+		FF_HeaterBit = (1 << 7),
+		FF_CCBBit = (1 << 6),
+		FF_VCCSamplingBit = (1 << 5),
 		FF_CellBit = (1 << 4),
-		FF_UndefinedFaultStatusBit4 = (1 << 3),
+		FF_CommBit = (1 << 3),
 		FF_NTCBit = (1 << 2),
 		FF_DischargeMosfetBit = (1 << 1),
 		FF_ChargeMosfetBit = (1 << 0),

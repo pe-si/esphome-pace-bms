@@ -198,9 +198,9 @@ const std::string PaceBmsProtocolV25::DecodeProtectionStatus1Value(const uint8_t
 {
 	std::string str;
 
-	if ((val & P1F_UndefinedProtect1Bit) != 0)
+	if ((val & P1F_ChargerHighVoltageInProtect1Bit) != 0)
 	{
-		str.append("Undefined ProtectStatus1 Bit8; ");
+		str.append("Charger High Voltage In Protect; ");
 	}
 	if ((val & P1F_ShortCircuitProtect1Bit) != 0)
 	{
@@ -279,13 +279,13 @@ const std::string PaceBmsProtocolV25::DecodeStatusValue(const uint8_t val)
 {
 	std::string str;
 
-	if ((val & SF_HeartIndicatorBit) != 0)
+	if ((val & SF_HeaterActiveBit) != 0)
 	{
-		str.append("('Heart' indicator?); "); //***
+		str.append("Heater Active; "); 
 	}
-	if ((val & SF_UndefinedStatusBit7) != 0)
+	if ((val & SF_AlternateCurrentInBit) != 0)
 	{
-		str.append("(Undefined Status Bit7 - Possibly this means 'Heater', or 'AC in'); ");
+		str.append("Alternate Current In; ");
 	}
 	if ((val & SF_ChargingBit) != 0)
 	{
@@ -293,7 +293,7 @@ const std::string PaceBmsProtocolV25::DecodeStatusValue(const uint8_t val)
 	}
 	if ((val & SF_PositiveNegativeTerminalsReversedBit) != 0)
 	{
-		str.append("Positive/Negative Terminals Reversed; "); //***
+		str.append("Positive/Negative Terminals Reversed; "); 
 	}
 	if ((val & SF_DischargingBit) != 0)
 	{
@@ -323,9 +323,9 @@ const std::string PaceBmsProtocolV25::DecodeConfigurationStatusValue(const uint8
 	{
 		str.append("Undefined ConfigurationStatus Bit8 Set; ");
 	}
-	if ((val & CF_UndefinedConfigurationStatusBit7) != 0)
+	if ((val & CF_StaticBalanceBit) != 0)
 	{
-		str.append("Undefined ConfigurationStatus Bit7 Set; ");
+		str.append("Static Balance ('Enabled'?); "); // "Enabled" ??????????????
 	}
 	if ((val & CF_LedAlarmEnabledBit) != 0)
 	{
@@ -359,25 +359,25 @@ const std::string PaceBmsProtocolV25::DecodeFaultStatusValue(const uint8_t val)
 {
 	std::string str;
 
-	if ((val & FF_UndefinedFaultStatusBit8) != 0)
+	if ((val & FF_HeaterBit) != 0)
 	{
-		str.append("Undefined FaultStatus Bit8 Fault; ");
+		str.append("Heater Fault; ");
 	}
-	if ((val & FF_UndefinedFaultStatusBit7) != 0)
+	if ((val & FF_CCBBit) != 0)
 	{
-		str.append("Undefined FaultStatus Bit7 Fault; ");
+		str.append("CCB Fault; ");
 	}
-	if ((val & FF_SampleBit) != 0)
+	if ((val & FF_VCCSamplingBit) != 0)
 	{
-		str.append("Sample (ADC?) fault; ");
+		str.append("VCC Sampling Fault; ");
 	}
 	if ((val & FF_CellBit) != 0)
 	{
 		str.append("Cell fault; ");
 	}
-	if ((val & FF_UndefinedFaultStatusBit4) != 0)
+	if ((val & FF_CommBit) != 0)
 	{
-		str.append("Undefined FaultStatus Bit4 Fault; ");
+		str.append("Comm Fault; "); //only on later PACE 
 	}
 	if ((val & FF_NTCBit) != 0)
 	{
