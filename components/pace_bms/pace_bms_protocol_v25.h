@@ -218,7 +218,7 @@ public:
 	//     StatusInformation.system_value
 	enum StatusInformation_SystemFlags
 	{
-		SF_HeaterEnabledBit = (1 << 7),
+		SF_HeaterActiveBit = (1 << 7),
 		SF_AlternateCurrentInBit = (1 << 6),
 		SF_ChargingBit = (1 << 5),
 		SF_PositiveNegativeTerminalsReversedBit = (1 << 4),
