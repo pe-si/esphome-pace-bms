@@ -91,12 +91,6 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 		analogInformation.temperaturesTenthsCelcius[i] = (temperature - 2730);
 	}
 
-	// skip over any additional temperature readings we don't support
-	if (analogInformation.temperatureCount > MAX_TEMP_COUNT)
-	{
-		byteOffset += (analogInformation.temperatureCount - MAX_TEMP_COUNT) * 4;
-	}
-
 	analogInformation.currentMilliamps = ReadHexEncodedSShort(response, byteOffset) * 10;
 
 	analogInformation.totalVoltageMillivolts = ReadHexEncodedUShort(response, byteOffset);
