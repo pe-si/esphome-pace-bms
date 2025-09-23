@@ -79,10 +79,22 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 	analogInformation.temperatureCount = ReadHexEncodedByte(response, byteOffset);
 	if (analogInformation.temperatureCount > MAX_TEMP_COUNT)
 	{
-		// we haven't read the UDF yet but at least we'll only "info" rather than "warn" on subsequent iterations
-		// todo: look-ahead to the UDF here and see if we can determine if this is expected or not even on the first invocation
-		if(AnalogInformationUserDefinedValue == 4) // Eenovance/Sunsynk has 8 temperature readings
-			LogInfo("Response contains more temperature readings than are supported, but this is expected for this protocol variant; the 7th and 8th readings will be ignored");
+		// Eenovance/Sunsynk have 8 temperature readings, so if we haven't already seen the AnalogInformationUserDefinedValue
+		// (if it's still -1) and the count of temperature readings is 8, then lets go ahead and do a quick read-ahead to see 
+		// if it "looks like" one of those packs in which case we can log info instead of warning
+		int16_t Lookahead_AnalogInformationUserDefinedValue = -1;
+		if(analogInformation.temperatureCount == 8 && AnalogInformationUserDefinedValue == -1 /* not read yet */)
+		{
+			// this is at byte offset 13 (start of payload) + 116 (offset in payload) in the response 
+			uint16_t snoopAheadByteOffset = 13 + 116; // 129
+			Lookahead_AnalogInformationUserDefinedValue = ReadHexEncodedByte(response, snoopAheadByteOffset);
+		}
+
+		if((AnalogInformationUserDefinedValue == 4) || 
+		   (AnalogInformationUserDefinedValue == -1 /* not read yet */ && Lookahead_AnalogInformationUserDefinedValue == 4)) 
+		{
+			LogInfo("Response contains more temperature readings than are supported, but that is expected for this protocol variant; the 7th and 8th readings will be ignored");
+		}
 		else
 			LogWarning("Response contains more temperature readings than are supported, results will be truncated");
 	}
@@ -91,7 +103,7 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 		uint16_t temperature = ReadHexEncodedUShort(response, byteOffset);
 
 		if (i > MAX_TEMP_COUNT - 1)
-			continue;
+			continue; // already logged above if count was too high
 
 		analogInformation.temperaturesTenthsCelcius[i] = (temperature - 2730);
 	}
