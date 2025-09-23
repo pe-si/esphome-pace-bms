@@ -287,6 +287,18 @@ However, I'd like to keep a full list here if only for search engine discoverabi
     - Thank you MichaelEFlip for reporting.
     - Not confirmed yet that the ReadStatusInformation command will return proper results, but this BMS seems to be running the same firmware version as the GREENRICH U-P5000 which is confirmed working.
 
+- **Eenovance MANA 10.6**
+  - BMS hardware versions: 
+    - **[Mana 10.6](https://renowatt.gr/wp-content/uploads/Solar-PDFs/MANA10-6.pdf)** / **[Brochure](https://www.eenovance.com/Public/Uploads/uploadfile/files/20250523/EenovanceProductsBrochureENV2.120250523S.pdf)** / BMS: P16S200A-C21084-3.10
+    - SKUs: MANA 5.0, MANA 5.3, MANA 5.12, MANA 5.32, MANA 10.24, MANA 10.6, MANA 10.65, MANA 14.33, MANA 15.97, MANA 16.0
+    - Related Models: MANA 5.12 Ultra, RT 5320, RT 11.77
+      - ![Eenovance MANA 10.6](images/Eenovance-MANA-10.6-232.png)
+  - required `pace_bms` config: 
+    - `protocol_commandset: 0x25`
+  - notes:
+    - Thank you johnmsole for reporting.
+    - The MANA line appears to be a Synsynk rebadge
+
 # What ESPs and RPs are Supported?
 
 Both ESP8266 and ESP32 are supported, though an ESP32 class device is recommended.  The RP2040 (Raspberry Pi Pico W) should also work but I haven't tested it.
