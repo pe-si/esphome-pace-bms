@@ -297,7 +297,7 @@ However, I'd like to keep a full list here if only for search engine discoverabi
     - `protocol_commandset: 0x25`
   - notes:
     - Thank you johnmsole for reporting.
-    - The MANA line appears to be a Sunsynk rebadge.
+    - The MANA line appears to be a Sunsynk rebadge.  The Eenovance MANA 10.6 appears to be a rebadged Sunsunk SUN-BATT-10.65 for example.
 
 # What ESPs and RPs are Supported?
 
