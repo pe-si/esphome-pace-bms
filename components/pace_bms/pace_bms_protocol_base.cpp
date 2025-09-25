@@ -382,7 +382,7 @@ int16_t PaceBmsProtocolBase::ValidateResponseAndGetPayloadLength(const uint8_t b
 	uint8_t addr = ReadHexEncodedByte(response, byteOffset);
 	if (addr != expected_addr)
 	{
-		LogError("Response from wrong bus Id in header, expected " + std::to_string(addr) + " but got " + std::to_string(expected_addr));
+		LogError("Response from wrong bus Id in header, expected " + std::to_string(expected_addr) + " but got " + std::to_string(addr));
 		return -1;
 	}
 
