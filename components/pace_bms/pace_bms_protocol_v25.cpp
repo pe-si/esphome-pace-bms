@@ -33,11 +33,11 @@ bool PaceBmsProtocolV25::CreateReadAnalogInformationRequest(const uint8_t busId,
 
 	return true;
 }
-bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busId, const std::vector<uint8_t>& response, AnalogInformation& analogInformation)
+bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busId, OPTIONAL_NS::optional<uint8_t> respondingBusId, const std::vector<uint8_t>& response, AnalogInformation& analogInformation)
 {
 	//std::memset(&analogInformation, 0, sizeof(AnalogInformation));
 
-	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, response);
+	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, respondingBusId, response);
 	if (payloadLen == -1)
 	{
 		// failed to validate, the call would have done it's own logging
@@ -54,10 +54,11 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 		LogVerbose("Response contains a value other than zero before the BusId");
 	}
 
+	// note that this is the *payload* busId, not the header busId which was already validated
 	uint8_t busIdResponding = ReadHexEncodedByte(response, byteOffset);
 	if (busIdResponding != busId)
 	{
-		LogError("Response from wrong bus Id in payload");
+		LogError("Response from wrong bus Id in payload, expected %i but got %i", busId, busIdResponding);
 		return false;
 	}
 
@@ -85,7 +86,7 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 		int16_t Lookahead_AnalogInformationUserDefinedValue = -1;
 		if(analogInformation.temperatureCount == 8 && AnalogInformationUserDefinedValue == -1 /* not read yet */)
 		{
-			// this is at byte offset 13 (start of payload) + 116 (offset in payload) in the response 
+			// this is at byte offset 13 (start of payload) + 116 (offset in payload) in the response, note this is offset from "normal" due to the 8 temperature readings
 			uint16_t snoopAheadByteOffset = 13 + 116; // 129
 			Lookahead_AnalogInformationUserDefinedValue = ReadHexEncodedByte(response, snoopAheadByteOffset);
 		}
@@ -504,7 +505,7 @@ const std::string PaceBmsProtocolV25::DecodeWarningStatus2Value(const uint8_t va
 	return str;
 }
 
-bool PaceBmsProtocolV25::ProcessReadStatusInformationResponse(const uint8_t busId, const std::vector<uint8_t>& response, StatusInformation& statusInformation)
+bool PaceBmsProtocolV25::ProcessReadStatusInformationResponse(const uint8_t busId, OPTIONAL_NS::optional<uint8_t> respondingBusId, const std::vector<uint8_t>& response, StatusInformation& statusInformation)
 {
 	//std::memset(&statusInformation, 0, sizeof(StatusInformation));
 
@@ -515,7 +516,7 @@ bool PaceBmsProtocolV25::ProcessReadStatusInformationResponse(const uint8_t busI
 	statusInformation.protectionText.clear();
 	statusInformation.faultText.clear();
 
-	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, response);
+	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, respondingBusId, response);
 	if (payloadLen == -1)
 	{
 		// failed to validate, the call would have done it's own logging
@@ -532,10 +533,11 @@ bool PaceBmsProtocolV25::ProcessReadStatusInformationResponse(const uint8_t busI
 		LogVerbose("Response contains a value other than zero before the BusId");
 	}
 
+	// note that this is the *payload* busId, not the header busId which was already validated
 	uint8_t busIdResponding = ReadHexEncodedByte(response, byteOffset);
 	if (busIdResponding != busId)
 	{
-		LogError("Response from wrong bus Id in payload");
+		LogError("Response from wrong bus Id in payload, expected %i but got %i", busId, busIdResponding);
 		return false;
 	}
 
@@ -737,11 +739,11 @@ bool PaceBmsProtocolV25::CreateReadHardwareVersionRequest(const uint8_t busId, s
 	CreateRequest(busId, CID2_ReadHardwareVersion, std::vector<uint8_t>(), request);
 	return true;
 }
-bool PaceBmsProtocolV25::ProcessReadHardwareVersionResponse(const uint8_t busId, const std::vector<uint8_t>& response, std::string& hardwareVersion)
+bool PaceBmsProtocolV25::ProcessReadHardwareVersionResponse(const uint8_t busId, OPTIONAL_NS::optional<uint8_t> respondingBusId, const std::vector<uint8_t>& response, std::string& hardwareVersion)
 {
 	hardwareVersion.clear();
 
-	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, response);
+	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, respondingBusId, response);
 	if (payloadLen == -1)
 	{
 		// failed to validate, the call would have done it's own logging
@@ -781,9 +783,9 @@ bool PaceBmsProtocolV25::CreateReadSerialNumberRequest(const uint8_t busId, std:
 	CreateRequest(busId, CID2_ReadSerialNumber, std::vector<uint8_t>(), request);
 	return true;
 }
-bool PaceBmsProtocolV25::ProcessReadSerialNumberResponse(const uint8_t busId, const std::vector<uint8_t>& response, std::string& serialNumber)
+bool PaceBmsProtocolV25::ProcessReadSerialNumberResponse(const uint8_t busId, OPTIONAL_NS::optional<uint8_t> respondingBusId, const std::vector<uint8_t>& response, std::string& serialNumber)
 {
-	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, response);
+	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, respondingBusId, response);
 	if (payloadLen == -1)
 	{
 		// failed to validate, the call would have done it's own logging
@@ -854,9 +856,9 @@ bool PaceBmsProtocolV25::CreateWriteSwitchCommandRequest(const uint8_t busId, co
 
 	return true;
 }
-bool PaceBmsProtocolV25::ProcessWriteSwitchCommandResponse(const uint8_t busId, const SwitchCommand command, const std::vector<uint8_t>& response)
+bool PaceBmsProtocolV25::ProcessWriteSwitchCommandResponse(const uint8_t busId, OPTIONAL_NS::optional<uint8_t> respondingBusId, const SwitchCommand command, const std::vector<uint8_t>& response)
 {
-	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, response);
+	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, respondingBusId, response);
 	if (payloadLen == -1)
 	{
 		// failed to validate, the call would have done it's own logging
@@ -963,9 +965,9 @@ bool PaceBmsProtocolV25::CreateWriteMosfetSwitchCommandRequest(const uint8_t bus
 
 	return true;
 }
-bool PaceBmsProtocolV25::ProcessWriteMosfetSwitchCommandResponse(const uint8_t busId, const MosfetType type, const MosfetState command, const std::vector<uint8_t>& response)
+bool PaceBmsProtocolV25::ProcessWriteMosfetSwitchCommandResponse(const uint8_t busId, OPTIONAL_NS::optional<uint8_t> respondingBusId, const MosfetType type, const MosfetState command, const std::vector<uint8_t>& response)
 {
-	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, response);
+	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, respondingBusId, response);
 	if (payloadLen == -1)
 	{
 		// failed to validate, the call would have done it's own logging
@@ -1033,9 +1035,9 @@ bool PaceBmsProtocolV25::CreateWriteShutdownCommandRequest(const uint8_t busId, 
 
 	return true;
 }
-bool PaceBmsProtocolV25::ProcessWriteShutdownCommandResponse(const uint8_t busId, const std::vector<uint8_t>& response)
+bool PaceBmsProtocolV25::ProcessWriteShutdownCommandResponse(const uint8_t busId, OPTIONAL_NS::optional<uint8_t> respondingBusId, const std::vector<uint8_t>& response)
 {
-	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, response);
+	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, respondingBusId, response);
 	if (payloadLen == -1)
 	{
 		// failed to validate, the call would have done it's own logging
@@ -1073,9 +1075,9 @@ bool PaceBmsProtocolV25::CreateReadSystemDateTimeRequest(const uint8_t busId, st
 	CreateRequest(busId, CID2_ReadDateTime, std::vector<uint8_t>(), request);
 	return true;
 }
-bool PaceBmsProtocolV25::ProcessReadSystemDateTimeResponse(const uint8_t busId, const std::vector<uint8_t>& response, DateTime& dateTime)
+bool PaceBmsProtocolV25::ProcessReadSystemDateTimeResponse(const uint8_t busId, OPTIONAL_NS::optional<uint8_t> respondingBusId, const std::vector<uint8_t>& response, DateTime& dateTime)
 {
-	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, response);
+	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, respondingBusId, response);
 	if (payloadLen == -1)
 	{
 		// failed to validate, the call would have done it's own logging
@@ -1110,9 +1112,9 @@ bool PaceBmsProtocolV25::CreateWriteSystemDateTimeRequest(const uint8_t busId, c
 
 	return true;
 }
-bool PaceBmsProtocolV25::ProcessWriteSystemDateTimeResponse(const uint8_t busId, const std::vector<uint8_t>& response)
+bool PaceBmsProtocolV25::ProcessWriteSystemDateTimeResponse(const uint8_t busId, OPTIONAL_NS::optional<uint8_t> respondingBusId, const std::vector<uint8_t>& response)
 {
-	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, response);
+	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, respondingBusId, response);
 	if (payloadLen == -1)
 	{
 		// failed to validate, the call would have done it's own logging
@@ -1141,9 +1143,9 @@ bool PaceBmsProtocolV25::CreateReadConfigurationRequest(const uint8_t busId, con
 	CreateRequest(busId, (CID2)configType, std::vector<uint8_t>(), request);
 	return true;
 }
-bool PaceBmsProtocolV25::ProcessWriteConfigurationResponse(const uint8_t busId, const std::vector<uint8_t>& response)
+bool PaceBmsProtocolV25::ProcessWriteConfigurationResponse(const uint8_t busId, OPTIONAL_NS::optional<uint8_t> respondingBusId, const std::vector<uint8_t>& response)
 {
-	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, response);
+	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, respondingBusId, response);
 	if (payloadLen == -1)
 	{
 		// failed to validate, the call would have done it's own logging
@@ -1165,9 +1167,9 @@ const unsigned char PaceBmsProtocolV25::exampleReadCellOverVoltageConfigurationR
 const unsigned char PaceBmsProtocolV25::exampleWriteCellOverVoltageConfigurationRequestV25[] = "~250046D0F010010E100E740D340AFA21\r";
 const unsigned char PaceBmsProtocolV25::exampleWriteCellOverVoltageConfigurationResponseV25[] = "~250046000000FDAF\r";
 
-bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, const std::vector<uint8_t>& response, CellOverVoltageConfiguration& config)
+bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, OPTIONAL_NS::optional<uint8_t> respondingBusId, const std::vector<uint8_t>& response, CellOverVoltageConfiguration& config)
 {
-	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, response);
+	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, respondingBusId, response);
 	if (payloadLen == -1)
 	{
 		// failed to validate, the call would have done it's own logging
@@ -1256,9 +1258,9 @@ const unsigned char PaceBmsProtocolV25::exampleReadPackOverVoltageConfigurationR
 const unsigned char PaceBmsProtocolV25::exampleWritePackOverVoltageConfigurationRequestV25[] = "~250046D4F01001E10AE740D2F00AF9FB\r";
 const unsigned char PaceBmsProtocolV25::exampleWritePackOverVoltageConfigurationResponseV25[] = "~250046000000FDAF\r";
 
-bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, const std::vector<uint8_t> response, PackOverVoltageConfiguration& config)
+bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, OPTIONAL_NS::optional<uint8_t> respondingBusId, const std::vector<uint8_t> response, PackOverVoltageConfiguration& config)
 {
-	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, response);
+	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, respondingBusId, response);
 	if (payloadLen == -1)
 	{
 		// failed to validate, the call would have done it's own logging
@@ -1346,9 +1348,9 @@ const unsigned char PaceBmsProtocolV25::exampleReadCellUnderVoltageConfiguration
 const unsigned char PaceBmsProtocolV25::exampleWriteCellUnderVoltageConfigurationRequestV25[] = "~250046D2F010010AF009C40B540AFA0E\r";
 const unsigned char PaceBmsProtocolV25::exampleWriteCellUnderVoltageConfigurationResponseV25[] = "~250046000000FDAF\r";
 
-bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, const std::vector<uint8_t>& response, CellUnderVoltageConfiguration& config)
+bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, OPTIONAL_NS::optional<uint8_t> respondingBusId, const std::vector<uint8_t>& response, CellUnderVoltageConfiguration& config)
 {
-	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, response);
+	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, respondingBusId, response);
 	if (payloadLen == -1)
 	{
 		// failed to validate, the call would have done it's own logging
@@ -1436,9 +1438,9 @@ const unsigned char PaceBmsProtocolV25::exampleReadPackUnderVoltageConfiguration
 const unsigned char PaceBmsProtocolV25::exampleWritePackUnderVoltageConfigurationRequestV25[] = "~250046D6F01001AF009C40B5400AFA0A\r";
 const unsigned char PaceBmsProtocolV25::exampleWritePackUnderVoltageConfigurationResponseV25[] = "~250046000000FDAF\r";
 
-bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, const std::vector<uint8_t>& response, PackUnderVoltageConfiguration& config)
+bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, OPTIONAL_NS::optional<uint8_t> respondingBusId, const std::vector<uint8_t>& response, PackUnderVoltageConfiguration& config)
 {
-	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, response);
+	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, respondingBusId, response);
 	if (payloadLen == -1)
 	{
 		// failed to validate, the call would have done it's own logging
@@ -1526,9 +1528,9 @@ const unsigned char PaceBmsProtocolV25::exampleReadChargeOverCurrentConfiguratio
 const unsigned char PaceBmsProtocolV25::exampleWriteChargeOverCurrentConfigurationRequestV25[] = "~250046D8400C010068006E0AFB01\r";
 const unsigned char PaceBmsProtocolV25::exampleWriteChargeOverCurrentConfigurationResponseV25[] = "~250046000000FDAF\r";
 
-bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, const std::vector<uint8_t>& response, ChargeOverCurrentConfiguration& config)
+bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, OPTIONAL_NS::optional<uint8_t> respondingBusId, const std::vector<uint8_t>& response, ChargeOverCurrentConfiguration& config)
 {
-	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, response);
+	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, respondingBusId, response);
 	if (payloadLen == -1)
 	{
 		// failed to validate, the call would have done it's own logging
@@ -1596,9 +1598,9 @@ const unsigned char PaceBmsProtocolV25::exampleReadDishargeOverCurrent1Configura
 const unsigned char PaceBmsProtocolV25::exampleWriteDishargeOverCurrent1ConfigurationRequestV25[] = "~250046DA400C010069006E0AFAF7\r";
 const unsigned char PaceBmsProtocolV25::exampleWriteDishargeOverCurrent1ConfigurationResponseV25[] = "~250046000000FDAF\r";
 
-bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, const std::vector<uint8_t>& response, DischargeOverCurrent1Configuration& config)
+bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, OPTIONAL_NS::optional<uint8_t> respondingBusId, const std::vector<uint8_t>& response, DischargeOverCurrent1Configuration& config)
 {
-	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, response);
+	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, respondingBusId, response);
 	if (payloadLen == -1)
 	{
 		// failed to validate, the call would have done it's own logging
@@ -1664,9 +1666,9 @@ const unsigned char PaceBmsProtocolV25::exampleReadDishargeOverCurrent2Configura
 const unsigned char PaceBmsProtocolV25::exampleWriteDishargeOverCurrent2ConfigurationRequestV25[] = "~250046E2A006009604FC4E\r";
 const unsigned char PaceBmsProtocolV25::exampleWriteDishargeOverCurrent2ConfigurationResponseV25[] = "~250046000000FDAF\r";
 
-bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, const std::vector<uint8_t>& response, DischargeOverCurrent2Configuration& config)
+bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, OPTIONAL_NS::optional<uint8_t> respondingBusId, const std::vector<uint8_t>& response, DischargeOverCurrent2Configuration& config)
 {
-	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, response);
+	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, respondingBusId, response);
 	if (payloadLen == -1)
 	{
 		// failed to validate, the call would have done it's own logging
@@ -1732,9 +1734,9 @@ const unsigned char PaceBmsProtocolV25::exampleReadShortCircuitProtectionConfigu
 const unsigned char PaceBmsProtocolV25::exampleWriteShortCircuitProtectionConfigurationRequestV25[] = "~250046E4E0020CFD0C\r";
 const unsigned char PaceBmsProtocolV25::exampleWriteShortCircuitProtectionConfigurationResponseV25[] = "~250046000000FDAF\r";
 
-bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, const std::vector<uint8_t>& response, ShortCircuitProtectionConfiguration& config)
+bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, OPTIONAL_NS::optional<uint8_t> respondingBusId, const std::vector<uint8_t>& response, ShortCircuitProtectionConfiguration& config)
 {
-	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, response);
+	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, respondingBusId, response);
 	if (payloadLen == -1)
 	{
 		// failed to validate, the call would have done it's own logging
@@ -1777,9 +1779,9 @@ const unsigned char PaceBmsProtocolV25::exampleReadCellBalancingConfigurationRes
 const unsigned char PaceBmsProtocolV25::exampleWriteCellBalancingConfigurationRequestV25[] = "~250046B580080D48001EFBD2\r";
 const unsigned char PaceBmsProtocolV25::exampleWriteCellBalancingConfigurationResponseV25[] = "~250046000000FDAF\r";
 
-bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, const std::vector<uint8_t>& response, CellBalancingConfiguration& config)
+bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, OPTIONAL_NS::optional<uint8_t> respondingBusId, const std::vector<uint8_t>& response, CellBalancingConfiguration& config)
 {
-	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, response);
+	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, respondingBusId, response);
 	if (payloadLen == -1)
 	{
 		// failed to validate, the call would have done it's own logging
@@ -1829,9 +1831,9 @@ const unsigned char PaceBmsProtocolV25::exampleReadSleepConfigurationResponseV25
 const unsigned char PaceBmsProtocolV25::exampleWriteSleepConfigurationRequestV25[] = "~250046A880080C1C0005FBDA\r";
 const unsigned char PaceBmsProtocolV25::exampleWriteSleepConfigurationResponseV25[] = "~250046000000FDAF\r";
 
-bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, const std::vector<uint8_t>& response, SleepConfiguration& config)
+bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, OPTIONAL_NS::optional<uint8_t> respondingBusId, const std::vector<uint8_t>& response, SleepConfiguration& config)
 {
-	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, response);
+	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, respondingBusId, response);
 	if (payloadLen == -1)
 	{
 		// failed to validate, the call would have done it's own logging
@@ -1889,9 +1891,9 @@ const unsigned char PaceBmsProtocolV25::exampleReadFullChargeLowChargeConfigurat
 const unsigned char PaceBmsProtocolV25::exampleWriteFullChargeLowChargeConfigurationRequestV25[] = "~250046AE600ADAC007D005FB3A\r";
 const unsigned char PaceBmsProtocolV25::exampleWriteFullChargeLowChargeConfigurationResponseV25[] = "~250046000000FDAF\r";
 
-bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, const std::vector<uint8_t>& response, FullChargeLowChargeConfiguration& config)
+bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, OPTIONAL_NS::optional<uint8_t> respondingBusId, const std::vector<uint8_t>& response, FullChargeLowChargeConfiguration& config)
 {
-	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, response);
+	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, respondingBusId, response);
 	if (payloadLen == -1)
 	{
 		// failed to validate, the call would have done it's own logging
@@ -1953,9 +1955,9 @@ const unsigned char PaceBmsProtocolV25::exampleReadChargeAndDischargeOverTempera
 const unsigned char PaceBmsProtocolV25::exampleWriteChargeAndDischargeOverTemperatureConfigurationRequestV25[] = "~250046DC501A010CA80CD00C9E0CDA0D020CD0F797\r";
 const unsigned char PaceBmsProtocolV25::exampleWriteChargeAndDischargeOverTemperatureConfigurationResponseV25[] = "~250046000000FDAF\r";
 
-bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, const std::vector<uint8_t>& response, ChargeAndDischargeOverTemperatureConfiguration& config)
+bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, OPTIONAL_NS::optional<uint8_t> respondingBusId, const std::vector<uint8_t>& response, ChargeAndDischargeOverTemperatureConfiguration& config)
 {
-	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, response);
+	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, respondingBusId, response);
 	if (payloadLen == -1)
 	{
 		// failed to validate, the call would have done it's own logging
@@ -2037,9 +2039,9 @@ const unsigned char PaceBmsProtocolV25::exampleReadChargeAndDischargeUnderTemper
 const unsigned char PaceBmsProtocolV25::exampleWriteChargeAndDischargeUnderTemperatureConfigurationRequestV25[] = "~250046DE501A010AAA0A780AAA0A1409E20A14F7BC\r";
 const unsigned char PaceBmsProtocolV25::exampleWriteChargeAndDischargeUnderTemperatureConfigurationResponseV25[] = "~250046000000FDAF\r";
 
-bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, const std::vector<uint8_t>& response, ChargeAndDischargeUnderTemperatureConfiguration& config)
+bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, OPTIONAL_NS::optional<uint8_t> respondingBusId, const std::vector<uint8_t>& response, ChargeAndDischargeUnderTemperatureConfiguration& config)
 {
-	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, response);
+	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, respondingBusId, response);
 	if (payloadLen == -1)
 	{
 		// failed to validate, the call would have done it's own logging
@@ -2121,9 +2123,9 @@ const unsigned char PaceBmsProtocolV25::exampleReadMosfetOverTemperatureConfigur
 const unsigned char PaceBmsProtocolV25::exampleWriteMosfetOverTemperatureConfigurationRequestV25[] = "~250046E0200E010E2E0EF60DFCFA48\r";
 const unsigned char PaceBmsProtocolV25::exampleWriteMosfetOverTemperatureConfigurationResponseV25[] = "~250046000000FDAF\r";
 
-bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, const std::vector<uint8_t>& response, MosfetOverTemperatureConfiguration& config)
+bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, OPTIONAL_NS::optional<uint8_t> respondingBusId, const std::vector<uint8_t>& response, MosfetOverTemperatureConfiguration& config)
 {
-	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, response);
+	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, respondingBusId, response);
 	if (payloadLen == -1)
 	{
 		// failed to validate, the call would have done it's own logging
@@ -2184,9 +2186,9 @@ const unsigned char PaceBmsProtocolV25::exampleReadEnvironmentOverUnderTemperatu
 const unsigned char PaceBmsProtocolV25::exampleWriteEnvironmentOverUnderTemperatureConfigurationRequestV25[] = "~250046E6501A0109E209B009E20D340D660D34F7EB\r";
 const unsigned char PaceBmsProtocolV25::exampleWriteEnvironmentOverUnderTemperatureConfigurationResponseV25[] = "~250046000000FDAF\r";
 
-bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, const std::vector<uint8_t>& response, EnvironmentOverUnderTemperatureConfiguration& config)
+bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, OPTIONAL_NS::optional<uint8_t> respondingBusId, const std::vector<uint8_t>& response, EnvironmentOverUnderTemperatureConfiguration& config)
 {
-	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, response);
+	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, respondingBusId, response);
 	if (payloadLen == -1)
 	{
 		// failed to validate, the call would have done it's own logging
@@ -2281,9 +2283,9 @@ bool PaceBmsProtocolV25::CreateReadChargeCurrentLimiterStartCurrentRequest(const
 	CreateRequest(busId, CID2_ReadChargeCurrentLimiterStartCurrent, std::vector<uint8_t>(), request);
 	return true;
 }
-bool PaceBmsProtocolV25::ProcessReadChargeCurrentLimiterStartCurrentResponse(const uint8_t busId, const std::vector<uint8_t>& response, uint8_t& current)
+bool PaceBmsProtocolV25::ProcessReadChargeCurrentLimiterStartCurrentResponse(const uint8_t busId, OPTIONAL_NS::optional<uint8_t> respondingBusId, const std::vector<uint8_t>& response, uint8_t& current)
 {
-	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, response);
+	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, respondingBusId, response);
 	if (payloadLen == -1)
 	{
 		// failed to validate, the call would have done it's own logging
@@ -2293,10 +2295,11 @@ bool PaceBmsProtocolV25::ProcessReadChargeCurrentLimiterStartCurrentResponse(con
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
 	uint16_t byteOffset = 13;
 
-	uint16_t busIdResponding = ReadHexEncodedByte(response, byteOffset);
+	// note that this is the *payload* busId, not the header busId which was already validated
+	uint8_t busIdResponding = ReadHexEncodedByte(response, byteOffset);
 	if (busIdResponding != busId)
 	{
-		LogError("Response from wrong bus Id in payload");
+		LogError("Response from wrong bus Id in payload, expected %i but got %i", busId, busIdResponding);
 		return false;
 	}
 
@@ -2323,9 +2326,9 @@ bool PaceBmsProtocolV25::CreateWriteChargeCurrentLimiterStartCurrentRequest(cons
 
 	return true;
 }
-bool PaceBmsProtocolV25::ProcessWriteChargeCurrentLimiterStartCurrentResponse(const uint8_t busId, const std::vector<uint8_t>& response)
+bool PaceBmsProtocolV25::ProcessWriteChargeCurrentLimiterStartCurrentResponse(const uint8_t busId, OPTIONAL_NS::optional<uint8_t> respondingBusId, const std::vector<uint8_t>& response)
 {
-	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, response);
+	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, respondingBusId, response);
 	if (payloadLen == -1)
 	{
 		// failed to validate, the call would have done it's own logging
@@ -2350,9 +2353,9 @@ bool PaceBmsProtocolV25::CreateReadRemainingCapacityRequest(const uint8_t busId,
 	CreateRequest(busId, CID2_ReadRemainingCapacity, std::vector<uint8_t>(), request);
 	return true;
 }
-bool PaceBmsProtocolV25::ProcessReadRemainingCapacityResponse(const uint8_t busId, const std::vector<uint8_t>& response, uint32_t& remainingCapacityMilliampHours, uint32_t& actualCapacityMilliampHours, uint32_t& designCapacityMilliampHours)
+bool PaceBmsProtocolV25::ProcessReadRemainingCapacityResponse(const uint8_t busId, OPTIONAL_NS::optional<uint8_t> respondingBusId, const std::vector<uint8_t>& response, uint32_t& remainingCapacityMilliampHours, uint32_t& actualCapacityMilliampHours, uint32_t& designCapacityMilliampHours)
 {
-	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, response);
+	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, respondingBusId, response);
 	if (payloadLen == -1)
 	{
 		// failed to validate, the call would have done it's own logging
@@ -2379,9 +2382,9 @@ bool PaceBmsProtocolV25::CreateReadProtocolsRequest(const uint8_t busId, std::ve
 	CreateRequest(busId, CID2_ReadCommunicationsProtocols, std::vector<uint8_t>(), request);
 	return true;
 }
-bool PaceBmsProtocolV25::ProcessReadProtocolsResponse(const uint8_t busId, const std::vector<uint8_t>& response, Protocols& protocols)
+bool PaceBmsProtocolV25::ProcessReadProtocolsResponse(const uint8_t busId, OPTIONAL_NS::optional<uint8_t> respondingBusId, const std::vector<uint8_t>& response, Protocols& protocols)
 {
-	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, response);
+	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, respondingBusId, response);
 	if (payloadLen == -1)
 	{
 		// failed to validate, the call would have done it's own logging
@@ -2410,9 +2413,9 @@ bool PaceBmsProtocolV25::CreateWriteProtocolsRequest(const uint8_t busId, const 
 
 	return true;
 }
-bool PaceBmsProtocolV25::ProcessWriteProtocolsResponse(const uint8_t busId, const std::vector<uint8_t>& response)
+bool PaceBmsProtocolV25::ProcessWriteProtocolsResponse(const uint8_t busId, OPTIONAL_NS::optional<uint8_t> respondingBusId, const std::vector<uint8_t>& response)
 {
-	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, response);
+	int16_t payloadLen = ValidateResponseAndGetPayloadLength(busId, respondingBusId, response);
 	if (payloadLen == -1)
 	{
 		// failed to validate, the call would have done it's own logging

@@ -456,8 +456,37 @@ void PaceBms::process_response_frame_(uint8_t* frame_bytes, uint8_t frame_length
 	ESP_LOGV(TAG, "Processing response frame for '%s' request", this->last_request_description.c_str());
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
 	{
-		std::string str(frame_bytes, frame_bytes + frame_length);
-		ESP_LOGVV(TAG, "Response frame: %s", str.c_str());
+		const int maxChunkSize = 100;
+
+		// log the frame, but split it up into chunks if it's too long for a single log entry
+		// this prevents the esp32 logging buffer from being exceeded and cutting off the log entry
+		// or simply just dropping the log entirely which is what I've seen happen
+		if(frame_length > maxChunkSize)
+		{
+			int charsRemaining = frame_length;
+			int offset = 0;
+
+			int chunkNum = 1;
+			int totalChunks = (frame_length / maxChunkSize) + (frame_length % maxChunkSize == 0 ? 0 : 1);
+
+			while(charsRemaining > 0)
+			{
+				int chunkSize = charsRemaining > maxChunkSize ? maxChunkSize : charsRemaining;
+
+				std::string str(frame_bytes + offset, frame_bytes + offset + chunkSize);
+				ESP_LOGVV(TAG, "Response frame (part %i of %i): %s", chunkNum, totalChunks, str.c_str());
+
+				charsRemaining -= chunkSize;
+				offset += chunkSize;
+
+				chunkNum++;
+			}
+		}
+		else // just log the entire thing in one go if short enough
+		{
+			std::string str(frame_bytes, frame_bytes + frame_length);
+			ESP_LOGVV(TAG, "Response frame: %s", str.c_str());
+		}
 	}
 #endif
 
@@ -480,7 +509,7 @@ void PaceBms::handle_read_analog_information_response_v25(std::vector<uint8_t>& 
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
 	PaceBmsProtocolV25::AnalogInformation analog_information;
-	bool result = this->pace_bms_v25_->ProcessReadAnalogInformationResponse(this->address_, response, analog_information);
+	bool result = this->pace_bms_v25_->ProcessReadAnalogInformationResponse(this->address_, this->responding_address_, response, analog_information);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -496,7 +525,7 @@ void PaceBms::handle_read_status_information_response_v25(std::vector<uint8_t>& 
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
 	PaceBmsProtocolV25::StatusInformation status_information;
-	bool result = this->pace_bms_v25_->ProcessReadStatusInformationResponse(this->address_, response, status_information);
+	bool result = this->pace_bms_v25_->ProcessReadStatusInformationResponse(this->address_, this->responding_address_, response, status_information);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -512,7 +541,7 @@ void PaceBms::handle_read_hardware_version_response_v25(std::vector<uint8_t>& re
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
 	std::string hardware_version;
-	bool result = this->pace_bms_v25_->ProcessReadHardwareVersionResponse(this->address_, response, hardware_version);
+	bool result = this->pace_bms_v25_->ProcessReadHardwareVersionResponse(this->address_, this->responding_address_, response, hardware_version);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -528,7 +557,7 @@ void PaceBms::handle_read_serial_number_response_v25(std::vector<uint8_t>& respo
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
 	std::string serial_number;
-	bool result = this->pace_bms_v25_->ProcessReadSerialNumberResponse(this->address_, response, serial_number);
+	bool result = this->pace_bms_v25_->ProcessReadSerialNumberResponse(this->address_, this->responding_address_, response, serial_number);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -543,7 +572,7 @@ void PaceBms::handle_read_serial_number_response_v25(std::vector<uint8_t>& respo
 void PaceBms::handle_write_switch_command_response_v25(PaceBmsProtocolV25::SwitchCommand switch_command, std::vector<uint8_t>& response) {
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
-	bool result = this->pace_bms_v25_->ProcessWriteSwitchCommandResponse(this->address_, switch_command, response);
+	bool result = this->pace_bms_v25_->ProcessWriteSwitchCommandResponse(this->address_, this->responding_address_, switch_command, response);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -553,7 +582,7 @@ void PaceBms::handle_write_switch_command_response_v25(PaceBmsProtocolV25::Switc
 void PaceBms::handle_write_mosfet_switch_command_response_v25(PaceBmsProtocolV25::MosfetType type, PaceBmsProtocolV25::MosfetState state, std::vector<uint8_t>& response) {
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
-	bool result = this->pace_bms_v25_->ProcessWriteMosfetSwitchCommandResponse(this->address_, type, state, response);
+	bool result = this->pace_bms_v25_->ProcessWriteMosfetSwitchCommandResponse(this->address_, this->responding_address_, type, state, response);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -563,7 +592,7 @@ void PaceBms::handle_write_mosfet_switch_command_response_v25(PaceBmsProtocolV25
 void PaceBms::handle_write_shutdown_command_response_v25(std::vector<uint8_t>& response) {
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
-	bool result = this->pace_bms_v25_->ProcessWriteShutdownCommandResponse(this->address_, response);
+	bool result = this->pace_bms_v25_->ProcessWriteShutdownCommandResponse(this->address_, this->responding_address_, response);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -574,7 +603,7 @@ void PaceBms::handle_read_protocols_response_v25(std::vector<uint8_t>& response)
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
 	PaceBmsProtocolV25::Protocols protocols;
-	bool result = this->pace_bms_v25_->ProcessReadProtocolsResponse(this->address_, response, protocols);
+	bool result = this->pace_bms_v25_->ProcessReadProtocolsResponse(this->address_, this->responding_address_, response, protocols);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -584,7 +613,7 @@ void PaceBms::handle_read_protocols_response_v25(std::vector<uint8_t>& response)
 void PaceBms::handle_write_protocols_response_v25(PaceBmsProtocolV25::Protocols protocols, std::vector<uint8_t>& response) {
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
-	bool result = this->pace_bms_v25_->ProcessWriteProtocolsResponse(this->address_, response);
+	bool result = this->pace_bms_v25_->ProcessWriteProtocolsResponse(this->address_, this->responding_address_, response);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -595,7 +624,7 @@ void PaceBms::handle_read_cell_over_voltage_configuration_response_v25(std::vect
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
 	PaceBmsProtocolV25::CellOverVoltageConfiguration config;
-	bool result = this->pace_bms_v25_->ProcessReadConfigurationResponse(this->address_, response, config);
+	bool result = this->pace_bms_v25_->ProcessReadConfigurationResponse(this->address_, this->responding_address_, response, config);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -610,7 +639,7 @@ void PaceBms::handle_read_pack_over_voltage_configuration_response_v25(std::vect
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
 	PaceBmsProtocolV25::PackOverVoltageConfiguration config;
-	bool result = this->pace_bms_v25_->ProcessReadConfigurationResponse(this->address_, response, config);
+	bool result = this->pace_bms_v25_->ProcessReadConfigurationResponse(this->address_, this->responding_address_, response, config);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -625,7 +654,7 @@ void PaceBms::handle_read_cell_under_voltage_configuration_response_v25(std::vec
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
 	PaceBmsProtocolV25::CellUnderVoltageConfiguration config;
-	bool result = this->pace_bms_v25_->ProcessReadConfigurationResponse(this->address_, response, config);
+	bool result = this->pace_bms_v25_->ProcessReadConfigurationResponse(this->address_, this->responding_address_, response, config);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -640,7 +669,7 @@ void PaceBms::handle_read_pack_under_voltage_configuration_response_v25(std::vec
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
 	PaceBmsProtocolV25::PackUnderVoltageConfiguration config;
-	bool result = this->pace_bms_v25_->ProcessReadConfigurationResponse(this->address_, response, config);
+	bool result = this->pace_bms_v25_->ProcessReadConfigurationResponse(this->address_, this->responding_address_, response, config);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -655,7 +684,7 @@ void PaceBms::handle_read_charge_over_current_configuration_response_v25(std::ve
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
 	PaceBmsProtocolV25::ChargeOverCurrentConfiguration config;
-	bool result = this->pace_bms_v25_->ProcessReadConfigurationResponse(this->address_, response, config);
+	bool result = this->pace_bms_v25_->ProcessReadConfigurationResponse(this->address_, this->responding_address_, response, config);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -671,7 +700,7 @@ void PaceBms::handle_read_discharge_over_current1_configuration_response_v25(std
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
 	PaceBmsProtocolV25::DischargeOverCurrent1Configuration config;
-	bool result = this->pace_bms_v25_->ProcessReadConfigurationResponse(this->address_, response, config);
+	bool result = this->pace_bms_v25_->ProcessReadConfigurationResponse(this->address_, this->responding_address_, response, config);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -686,7 +715,7 @@ void PaceBms::handle_read_discharge_over_current2_configuration_response_v25(std
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
 	PaceBmsProtocolV25::DischargeOverCurrent2Configuration config;
-	bool result = this->pace_bms_v25_->ProcessReadConfigurationResponse(this->address_, response, config);
+	bool result = this->pace_bms_v25_->ProcessReadConfigurationResponse(this->address_, this->responding_address_, response, config);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -701,7 +730,7 @@ void PaceBms::handle_read_short_circuit_protection_configuration_response_v25(st
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
 	PaceBmsProtocolV25::ShortCircuitProtectionConfiguration config;
-	bool result = this->pace_bms_v25_->ProcessReadConfigurationResponse(this->address_, response, config);
+	bool result = this->pace_bms_v25_->ProcessReadConfigurationResponse(this->address_, this->responding_address_, response, config);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -716,7 +745,7 @@ void PaceBms::handle_read_cell_balancing_configuration_response_v25(std::vector<
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
 	PaceBmsProtocolV25::CellBalancingConfiguration config;
-	bool result = this->pace_bms_v25_->ProcessReadConfigurationResponse(this->address_, response, config);
+	bool result = this->pace_bms_v25_->ProcessReadConfigurationResponse(this->address_, this->responding_address_, response, config);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -731,7 +760,7 @@ void PaceBms::handle_read_sleep_configuration_response_v25(std::vector<uint8_t>&
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
 	PaceBmsProtocolV25::SleepConfiguration config;
-	bool result = this->pace_bms_v25_->ProcessReadConfigurationResponse(this->address_, response, config);
+	bool result = this->pace_bms_v25_->ProcessReadConfigurationResponse(this->address_, this->responding_address_, response, config);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -746,7 +775,7 @@ void PaceBms::handle_read_full_charge_low_charge_configuration_response_v25(std:
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
 	PaceBmsProtocolV25::FullChargeLowChargeConfiguration config;
-	bool result = this->pace_bms_v25_->ProcessReadConfigurationResponse(this->address_, response, config);
+	bool result = this->pace_bms_v25_->ProcessReadConfigurationResponse(this->address_, this->responding_address_, response, config);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -761,7 +790,7 @@ void PaceBms::handle_read_charge_and_discharge_over_temperature_configuration_re
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
 	PaceBmsProtocolV25::ChargeAndDischargeOverTemperatureConfiguration config;
-	bool result = this->pace_bms_v25_->ProcessReadConfigurationResponse(this->address_, response, config);
+	bool result = this->pace_bms_v25_->ProcessReadConfigurationResponse(this->address_, this->responding_address_, response, config);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -776,7 +805,7 @@ void PaceBms::handle_read_charge_and_discharge_under_temperature_configuration_r
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
 	PaceBmsProtocolV25::ChargeAndDischargeUnderTemperatureConfiguration config;
-	bool result = this->pace_bms_v25_->ProcessReadConfigurationResponse(this->address_, response, config);
+	bool result = this->pace_bms_v25_->ProcessReadConfigurationResponse(this->address_, this->responding_address_, response, config);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -790,7 +819,7 @@ void PaceBms::handle_read_charge_and_discharge_under_temperature_configuration_r
 void PaceBms::handle_write_configuration_response_v25(std::vector<uint8_t>& response) {
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
-	bool result = this->pace_bms_v25_->ProcessWriteConfigurationResponse(this->address_, response);
+	bool result = this->pace_bms_v25_->ProcessWriteConfigurationResponse(this->address_, this->responding_address_, response);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -801,7 +830,7 @@ void PaceBms::handle_read_system_datetime_response_v25(std::vector<uint8_t>& res
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
 	PaceBmsProtocolV25::DateTime dt;
-	bool result = this->pace_bms_v25_->ProcessReadSystemDateTimeResponse(this->address_, response, dt);
+	bool result = this->pace_bms_v25_->ProcessReadSystemDateTimeResponse(this->address_, this->responding_address_, response, dt);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -816,7 +845,7 @@ void PaceBms::handle_read_mosfet_over_temperature_configuration_response_v25(std
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
 	PaceBmsProtocolV25::MosfetOverTemperatureConfiguration config;
-	bool result = this->pace_bms_v25_->ProcessReadConfigurationResponse(this->address_, response, config);
+	bool result = this->pace_bms_v25_->ProcessReadConfigurationResponse(this->address_, this->responding_address_, response, config);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -831,7 +860,7 @@ void PaceBms::handle_read_environment_over_under_temperature_configuration_respo
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
 	PaceBmsProtocolV25::EnvironmentOverUnderTemperatureConfiguration config;
-	bool result = this->pace_bms_v25_->ProcessReadConfigurationResponse(this->address_, response, config);
+	bool result = this->pace_bms_v25_->ProcessReadConfigurationResponse(this->address_, this->responding_address_, response, config);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -845,7 +874,7 @@ void PaceBms::handle_read_environment_over_under_temperature_configuration_respo
 void PaceBms::handle_write_system_datetime_response_v25(std::vector<uint8_t>& response) {
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
-	bool result = this->pace_bms_v25_->ProcessWriteSystemDateTimeResponse(this->address_, response);
+	bool result = this->pace_bms_v25_->ProcessWriteSystemDateTimeResponse(this->address_, this->responding_address_, response);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -857,7 +886,7 @@ void PaceBms::handle_read_analog_information_response_v20(std::vector<uint8_t>& 
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
 	PaceBmsProtocolV20::AnalogInformation analog_information;
-	bool result = this->pace_bms_v20_->ProcessReadAnalogInformationResponse(this->address_, response, analog_information);
+	bool result = this->pace_bms_v20_->ProcessReadAnalogInformationResponse(this->address_, this->responding_address_, response, analog_information);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -873,7 +902,7 @@ void PaceBms::handle_read_status_information_response_v20(std::vector<uint8_t>& 
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
 	PaceBmsProtocolV20::StatusInformation status_information;
-	bool result = this->pace_bms_v20_->ProcessReadStatusInformationResponse(this->address_, response, status_information);
+	bool result = this->pace_bms_v20_->ProcessReadStatusInformationResponse(this->address_, this->responding_address_, response, status_information);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -889,7 +918,7 @@ void PaceBms::handle_read_hardware_version_response_v20(std::vector<uint8_t>& re
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
 	std::string hardware_version;
-	bool result = this->pace_bms_v20_->ProcessReadHardwareVersionResponse(this->address_, response, hardware_version);
+	bool result = this->pace_bms_v20_->ProcessReadHardwareVersionResponse(this->address_, this->responding_address_, response, hardware_version);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -905,7 +934,7 @@ void PaceBms::handle_read_serial_number_response_v20(std::vector<uint8_t>& respo
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
 	std::string serial_number;
-	bool result = this->pace_bms_v20_->ProcessReadSerialNumberResponse(this->address_, response, serial_number);
+	bool result = this->pace_bms_v20_->ProcessReadSerialNumberResponse(this->address_, this->responding_address_, response, serial_number);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -920,7 +949,7 @@ void PaceBms::handle_read_serial_number_response_v20(std::vector<uint8_t>& respo
 void PaceBms::handle_write_shutdown_command_response_v20(std::vector<uint8_t>& response) {
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
-	bool result = this->pace_bms_v20_->ProcessWriteShutdownCommandResponse(this->address_, response);
+	bool result = this->pace_bms_v20_->ProcessWriteShutdownCommandResponse(this->address_, this->responding_address_, response);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -931,7 +960,7 @@ void PaceBms::handle_read_system_datetime_response_v20(std::vector<uint8_t>& res
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
 	PaceBmsProtocolV20::DateTime dt;
-	bool result = this->pace_bms_v20_->ProcessReadSystemDateTimeResponse(this->address_, response, dt);
+	bool result = this->pace_bms_v20_->ProcessReadSystemDateTimeResponse(this->address_, this->responding_address_, response, dt);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;
@@ -945,7 +974,7 @@ void PaceBms::handle_read_system_datetime_response_v20(std::vector<uint8_t>& res
 void PaceBms::handle_write_system_datetime_response_v20(std::vector<uint8_t>& response) {
 	ESP_LOGD(TAG, "Processing '%s' response", this->last_request_description.c_str());
 
-	bool result = this->pace_bms_v20_->ProcessWriteSystemDateTimeResponse(this->address_, response);
+	bool result = this->pace_bms_v20_->ProcessWriteSystemDateTimeResponse(this->address_, this->responding_address_, response);
 	if (result == false) {
 		ESP_LOGE(TAG, "Unable to decode '%s' response", this->last_request_description.c_str());
 		return;

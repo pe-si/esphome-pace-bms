@@ -4,10 +4,10 @@
 #include <vector>
 
 // uncomment the std version if using a C++17 compiler, otherwise esphome provides an equivalent implementation
-#include "esphome/core/optional.h"
-#define OPTIONAL_NS esphome
-//#include <optional>
-//#define OPTIONAL_NS std
+//#include "esphome/core/optional.h"
+//#define OPTIONAL_NS esphome
+#include <optional>
+#define OPTIONAL_NS std
 
 /*
 General format of requests/responses:
@@ -132,6 +132,6 @@ protected:
 
 	void CreateRequest(const uint8_t busId, const uint8_t cid2, const std::vector<uint8_t> payload, std::vector<uint8_t>& request);
 
-	int16_t ValidateResponseAndGetPayloadLength(const uint8_t busId, const std::vector<uint8_t> response);
+	int16_t ValidateResponseAndGetPayloadLength(const uint8_t busId, OPTIONAL_NS::optional<uint8_t> respondingBusId, const std::vector<uint8_t> response);
 };
 
