@@ -58,7 +58,7 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 	uint8_t busIdResponding = ReadHexEncodedByte(response, byteOffset);
 	if (busIdResponding != busId)
 	{
-		LogError("Response from wrong bus Id in payload, expected %i but got %i", busId, busIdResponding);
+		LogError("Response from wrong bus Id in payload, expected " + std::to_string(busId) + " but got " + std::to_string(busIdResponding));
 		return false;
 	}
 
@@ -537,7 +537,7 @@ bool PaceBmsProtocolV25::ProcessReadStatusInformationResponse(const uint8_t busI
 	uint8_t busIdResponding = ReadHexEncodedByte(response, byteOffset);
 	if (busIdResponding != busId)
 	{
-		LogError("Response from wrong bus Id in payload, expected %i but got %i", busId, busIdResponding);
+		LogError("Response from wrong bus Id in payload, expected " + std::to_string(busId) + " but got " + std::to_string(busIdResponding));
 		return false;
 	}
 
@@ -2299,7 +2299,7 @@ bool PaceBmsProtocolV25::ProcessReadChargeCurrentLimiterStartCurrentResponse(con
 	uint8_t busIdResponding = ReadHexEncodedByte(response, byteOffset);
 	if (busIdResponding != busId)
 	{
-		LogError("Response from wrong bus Id in payload, expected %i but got %i", busId, busIdResponding);
+		LogError("Response from wrong bus Id in payload, expected " + std::to_string(busId) + " but got " + std::to_string(busIdResponding));
 		return false;
 	}
 
