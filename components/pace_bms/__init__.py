@@ -19,6 +19,7 @@ PaceBms = pace_bms_ns.class_("PaceBms", cg.PollingComponent, uart.UARTDevice)
 # "this" for pace_bms_sensor/text_sensor/switch/etc. to get parent from
 CONF_PACE_BMS_ID = "pace_bms_id"
 
+CONF_RESPONDING_ADDRESS         = "responding_address"
 
 CONF_PROTOCOL_COMMANDSET         = "protocol_commandset"
 CONF_PROTOCOL_VARIANT            = "protocol_variant"
@@ -31,6 +32,7 @@ CONF_RESPONSE_TIMEOUT            = "response_timeout"
 
 #DEFAULT_FLOW_CONTROL_PIN = 
 DEFAULT_ADDRESS = 1
+#DEFAULT_RESPONDING_ADDRESS = 1
 
 DEFAULT_PROTOCOL_COMMANDSET = 0x25
 #DEFAULT_PROTOCOL_VARIANT = 
@@ -48,6 +50,7 @@ CONFIG_SCHEMA = (
 
             cv.Optional(CONF_FLOW_CONTROL_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_ADDRESS, default=DEFAULT_ADDRESS): cv.int_range(min=0, max=15),
+            cv.Optional(CONF_RESPONDING_ADDRESS): cv.int_range(min=0, max=15),
 
             cv.Optional(CONF_PROTOCOL_COMMANDSET, default=DEFAULT_PROTOCOL_COMMANDSET): cv.int_range(min=0x20, max=0x25),
             cv.Optional(CONF_PROTOCOL_VARIANT): cv.string_strict,
@@ -77,6 +80,8 @@ async def to_code(config):
         cg.add(var.set_flow_control_pin(pin))
     if CONF_ADDRESS in config:
         cg.add(var.set_address(config[CONF_ADDRESS]))
+    if CONF_RESPONDING_ADDRESS in config:
+        cg.add(var.set_responding_address(config[CONF_RESPONDING_ADDRESS]))
     if CONF_PROTOCOL_COMMANDSET in config:
         cg.add(var.set_protocol_commandset(config[CONF_PROTOCOL_COMMANDSET]))
     if CONF_PROTOCOL_VARIANT in config:

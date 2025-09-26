@@ -345,7 +345,7 @@ void PaceBmsProtocolBase::CreateRequest(const uint8_t busId, const uint8_t cid2,
 
 // validate all fields in the response except the payload data: SOI marker, header values, checksum, EOI marker
 // returns the detected payload length (payload always starts at offset 13), or -1 for error
-int16_t PaceBmsProtocolBase::ValidateResponseAndGetPayloadLength(const uint8_t busId, const std::vector<uint8_t> response)
+int16_t PaceBmsProtocolBase::ValidateResponseAndGetPayloadLength(const uint8_t busId, OPTIONAL_NS::optional<uint8_t> respondingBusId, const std::vector<uint8_t> response)
 {
 	uint16_t byteOffset = 0;
 
@@ -376,10 +376,13 @@ int16_t PaceBmsProtocolBase::ValidateResponseAndGetPayloadLength(const uint8_t b
 	}
 
 	// Bus Id
+	uint8_t expected_addr = busId;
+	if (respondingBusId.has_value())
+		expected_addr = respondingBusId.value();
 	uint8_t addr = ReadHexEncodedByte(response, byteOffset);
-	if (addr != busId)
+	if (addr != expected_addr)
 	{
-		LogError("Response from wrong Bus Id");
+		LogError("Response from wrong bus Id in header, expected " + std::to_string(expected_addr) + " but got " + std::to_string(addr));
 		return -1;
 	}
 
@@ -408,14 +411,6 @@ int16_t PaceBmsProtocolBase::ValidateResponseAndGetPayloadLength(const uint8_t b
 	}
 
 	uint16_t payloadLen = LengthFromChecksummedLength(cklen);
-
-	////// fixup a bad payload length
-	////if (payloadLen + 18 < (uint16_t)response.size() && response[response.size() - 1] == '\r')
-	////{
-	////	LogWarning("Response contains an incorrect payload length, fixing up the value by checking against EOI");
-	////	//return -1;
-	////	payloadLen = (uint16_t)response.size() - 18;
-	////}
 
 	// check payload length
 	if ((uint16_t)response.size() < payloadLen + 18)

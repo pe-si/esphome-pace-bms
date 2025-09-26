@@ -22,6 +22,7 @@ public:
 	// called by the codegen to set our YAML property values
 	void set_flow_control_pin(GPIOPin* flow_control_pin) { this->flow_control_pin_ = flow_control_pin; }
 	void set_address(uint8_t address) { this->address_ = address; }
+	void set_responding_address(uint8_t responding_address) { this->responding_address_ = responding_address; }
 	void set_protocol_commandset(int protocol_commandset) { this->protocol_commandset_ = protocol_commandset; }
 	void set_protocol_variant(std::string protocol_variant) { this->protocol_variant_ = protocol_variant; }
 	void set_protocol_version(uint8_t protocol_version_override) { this->protocol_version_ = protocol_version_override; }
@@ -105,6 +106,7 @@ protected:
 	// config values set in YAML
 	GPIOPin* flow_control_pin_{ nullptr };
 	uint8_t address_{ 0 };
+	OPTIONAL_NS::optional<uint8_t> responding_address_;
 
 	int protocol_commandset_{ 0 };
 	OPTIONAL_NS::optional<std::string> protocol_variant_;
