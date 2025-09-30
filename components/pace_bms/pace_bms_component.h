@@ -14,6 +14,12 @@
 namespace esphome {
 namespace pace_bms {
 
+enum SlaveDiscoveryMode : uint8_t {
+	SLAVE_DISCOVERY_MODE_NONE = 0,
+	SLAVE_DISCOVERY_MODE_RELAY = 1,
+	SLAVE_DISCOVERY_MODE_BROADCAST = 2,
+	SLAVE_DISCOVERY_MODE_RELAY_AND_BROADCAST = 3,
+};
 
 // this class encapsulates an instance of PaceBmsProtocolV25 (which handles protocol version 0x25) and injects the logging dependencies into it
 //     in the future, other protocol versions may be supported
@@ -29,6 +35,8 @@ public:
 	void set_chemistry(uint8_t chemistry) { this->chemistry_ = chemistry; }
 	void set_request_throttle(int request_throttle) { this->request_throttle_ = request_throttle; }
 	void set_response_timeout(int response_timeout) { this->response_timeout_ = response_timeout; }
+	void set_slave_discovery_mode(SlaveDiscoveryMode mode) { this->slave_discovery_mode_ = mode; }
+	void set_rx_buffer_size(uint16_t rx_buffer_size) { this->max_data_len_ = rx_buffer_size; }
 
 	// make accessible to sensors
 	int get_protocol_commandset() { return this->protocol_commandset_; }
@@ -116,7 +124,13 @@ protected:
 	int request_throttle_{ 0 };
 	int response_timeout_{ 0 };
 
+	SlaveDiscoveryMode slave_discovery_mode_{ SLAVE_DISCOVERY_MODE_NONE };
+
 	// put into command_item as a pointer to handle the BMS response
+	void handle_slave_discovery_broadcast_read_analog_information_response_v25(std::vector<uint8_t>& response);
+	void handle_slave_discovery_broadcast_read_status_information_response_v25(std::vector<uint8_t>& response);
+	void handle_slave_discovery_relay_read_analog_information_response_v25(uint8_t slaveAddress, std::vector<uint8_t>& response);
+	void handle_slave_discovery_relay_read_status_information_response_v25(uint8_t slaveAddress, std::vector<uint8_t>& response);
 	void handle_read_analog_information_response_v25(std::vector<uint8_t>& response);
 	void handle_read_status_information_response_v25(std::vector<uint8_t>& response);
 	void handle_read_hardware_version_response_v25(std::vector<uint8_t>& response);
@@ -188,15 +202,14 @@ protected:
 	//           send_next_request_frame_) once a response arrives
 	PaceBmsProtocolV25* pace_bms_v25_;
 	PaceBmsProtocolV20* pace_bms_v20_;
-	// this is currently "right sized" as it's only slightly larger than the largest 0x20 response I've seen
-	static const uint16_t max_data_len_ = 256;
-	uint8_t raw_data_[max_data_len_];
-	uint8_t raw_data_index_{ 0 };
+	uint16_t max_data_len_ = 256;
+	uint8_t *raw_data_;
+	uint16_t raw_data_index_{ 0 };
 	uint32_t last_transmit_{ 0 };
 	uint32_t last_receive_{ 0 };
 	bool request_outstanding_ = false;
 	void send_next_request_frame_();
-	void process_response_frame_(uint8_t* frame_bytes, uint8_t frame_length);
+	void process_response_frame_(uint8_t* frame_bytes, uint16_t frame_length);
 
 	// each item points to:
 	//     a description of what is happening such as "Read Analog Information" for logging purposes
