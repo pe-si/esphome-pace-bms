@@ -1,4 +1,4 @@
-Thank you kitor for sharing these!  They don't contain any info on 42h or 44h, the two main Read Analog/Status Information commands, but do contain documentation on multiple other CIDs. Some of those are more geared towards a multi-pack master/slave scenario with one master responding with summary info for all packs that it controls.  
+Thank you kitor for sharing these!  They don't contain any info on commands 42h or 44h, the two main Read Analog/Status Information commands, but do contain documentation on multiple other CIDs. These additional CIDs seem to be used more from the perspective of an inverter querying the battery packs, and return redundant (from a status readouts perspective) information that's already included in commands 42h and 44h.  For that reason, they not been implemented by esphome-pace-bms.  This documentation would be invaluable for anyone writing a "BMS emulator" though!
 
 
 
