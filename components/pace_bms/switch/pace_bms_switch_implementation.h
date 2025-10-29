@@ -4,7 +4,7 @@
 #include "esphome/components/switch/switch.h"
 
 namespace esphome {
-namespace pace_bms {
+namespace pace_bms_base {
 
 class PaceBmsSwitchImplementation : public Component, public switch_::Switch {
 public:
@@ -12,12 +12,16 @@ public:
 
 	void add_on_write_state_callback(std::function<void(bool)>&& callback) { this->write_state_callback_.add(std::move(callback)); }
 
+	void set_readonly() { this->readonly_ = true; }
+
 protected:
 	// the only purpose of this class is to simply fill in this pure virtual and call the parent container component on user initiated state change request
 	void write_state(bool state) override;
 
 	CallbackManager<void(bool)> write_state_callback_{};
+
+	bool readonly_{false};
 };
 
-}  // namespace pace_bms
+}  // namespace pace_bms_base
 }  // namespace esphome

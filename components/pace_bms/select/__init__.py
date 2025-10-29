@@ -3,15 +3,16 @@ import esphome.config_validation as cv
 from esphome.components import select
 from esphome.const import (
     CONF_ID,
+    CONF_DEVICE_ID,
 )
-from .. import pace_bms_ns, CONF_PACE_BMS_ID, PaceBms
+from .. import pace_bms_base_ns, CONF_PACE_BMS_ID, PaceBmsBase
+from ..pace_bms_globals import inherit_device_id, CONF_PROTOCOL_CAN, CONF_PROTOCOL_RS485, CONF_PROTOCOL_TYPE
 
 CODEOWNERS = ["@nkinnan"]
-
 DEPENDENCIES = ["pace_bms"]
 
-PaceBmsSelect = pace_bms_ns.class_("PaceBmsSelect", cg.Component)
-PaceBmsSelectImplementation = pace_bms_ns.class_("PaceBmsSelectImplementation", cg.Component, select.Select)
+PaceBmsSelect = pace_bms_base_ns.class_("PaceBmsSelect", cg.Component)
+PaceBmsSelectImplementation = pace_bms_base_ns.class_("PaceBmsSelectImplementation", cg.Component, select.Select)
 
 CONF_CHARGE_CURRENT_LIMITER_GEAR           = "charge_current_limiter_gear"
 charge_current_limiter_gear_options = {
@@ -19,7 +20,6 @@ charge_current_limiter_gear_options = {
     "High Gear": 0x09, # SC_SetChargeCurrentLimiterCurrentLimitLowGear
 }
 
-CONF_PROTOCOL_CAN           = "protocol_can"
 protocol_can_options = {
 	"":                                                                                          0xFF, # 255d <blank entry> I believe this means "turned off"
 	"PACE":                                                                                      0x00, # 00d  PACE
@@ -47,7 +47,6 @@ protocol_can_options = {
 	"Sofar V21003":                                                                              0x16, # 22d  Sofar_V21003
 }
 
-CONF_PROTOCOL_RS485           = "protocol_rs485"
 protocol_rs485_options = {
 	"":                                     0xFF, # 255d <blank entry> I believe this means "turned off"
 	"Pace Modbus":                          0x00, # 00d  Pace Modbus
@@ -77,24 +76,25 @@ protocol_rs485_options = {
 	"Leoch_V106":                           0x18, # 24d  Leoch_V106
 }
 
-CONF_PROTOCOL_TYPE           = "protocol_type"
 protocol_type_options = {
 	""      : 0xFF, # 255d <blank entry>
 	"Auto"  : 0x00, # 00d  Auto
 	"Manual": 0x01, # 01d  Manual
 }
 
-CONFIG_SCHEMA = cv.Schema(
-    {
+CONFIG_SCHEMA = cv.All(
+    inherit_device_id,
+    cv.Schema({
         cv.GenerateID(): cv.declare_id(PaceBmsSelect),
-        cv.GenerateID(CONF_PACE_BMS_ID): cv.use_id(PaceBms),
+        cv.GenerateID(CONF_PACE_BMS_ID): cv.use_id(PaceBmsBase),
+        cv.Optional(CONF_DEVICE_ID): cv.sub_device_id,
 
         cv.Optional(CONF_CHARGE_CURRENT_LIMITER_GEAR): select.select_schema(PaceBmsSelectImplementation),
 
         cv.Optional(CONF_PROTOCOL_CAN): select.select_schema(PaceBmsSelectImplementation),
         cv.Optional(CONF_PROTOCOL_RS485): select.select_schema(PaceBmsSelectImplementation),
         cv.Optional(CONF_PROTOCOL_TYPE): select.select_schema(PaceBmsSelectImplementation),
-    }
+    })
 )
 
 async def to_code(config):

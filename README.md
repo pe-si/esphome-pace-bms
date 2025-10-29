@@ -1,13 +1,15 @@
 
 # esphome-pace-bms
 
-This is an **ESPHome** component that supports "**paceic**" protocol **version 20 and 25** which is used by seemingly the majority of low-cost rack-mount and wall-mount Lithium Iron (LiFePO4) battery packs (but occasionally a different chemistry as well) manufactured in SE Asia.  Version 20 of this protocol is also sometimes called "PYLON" or "PylonTech".  The BMS can be communicated with over **RS485** or **RS232** and is manufactured by PACE (or is a clone).  It's used by many, many different manufacturers under different labels and branding.
+This is an **ESPHome** component that supports "**paceic**" protocol **version 20 and 25** which is used by seemingly the majority of low-cost rack-mount and wall-mount Lithium Iron (LiFePO4) battery packs (but occasionally a different chemistry as well) manufactured in Asia for the consumer market.  Version 20 of this protocol is also sometimes called "PYLON" or "PylonTech" although this seems to be a misnomer.  The BMS can be communicated with over **RS485** or **RS232** and is manufactured by PACE (or is a clone).  It's used by many, many different manufacturers under different labels and branding.
 
-The protocol is characterized by both requests and responses beginning with a '**~**' (tilde) character followed by two ASCII numbers (usually) either "**20**", "**21**" or "**25**" and ending with a '**\r**' (carriage return) character.  
+![EG4 LIFEPOWER4](images/EG4-0x20-192.png) ![EG4 LIFEPOWER4](images/Jakiper-0x25-192.png) ![Easun Powerwall](images/easun-powerwall-144.png) ![Tewaycell All-in-one](images/Tewaycell_All-in-one_159.png)
 
-If you are a developer, the protocol implementation is fully portable with a clean interface in C++ and with no dependencies on ESPHome or any other libraries (it does require C++17 support due to use of `std::optional`, though that could easily be removed).  Feel free to use it for whatever you wish, but a heads-up would be appreciated just so I know what's happening with it :)
+The protocol is characterized by both requests and responses beginning with a '**~**' (tilde) character followed by two ASCII numbers (usually) either "**20**", "**21**", "**25**", or "**26**" and ending with a '**\r**' (carriage return) character.  
 
-I strongly encourage you to read through this entire document, but here's a table of contents:
+If you are a developer, the protocol implementation is fully portable with a clean interface in C++ and with no dependencies on ESPHome or any other libraries (it does require C++20 support due to use of some newer language features, though that could easily be removed).  Feel free to use it for whatever you wish, but a heads-up would be appreciated just so I know what's happening with it :)  I'm on discord as nkinnan_63071 or you can [file an issue](https://github.com/nkinnan/esphome-pace-bms/issues) to get in touch.
+
+I strongly encourage you to read through this entire document if you plan to use this component, but here's a table of contents for quick reference:
 - [What Is Paceic Protocol Version 20](#What-Is-Paceic-Protocol-Version-20)
 - [What Is Paceic Protocol Version 25](#What-Is-Paceic-Protocol-Version-25)
 - [What Is Pace MODBUS Protocol](#What-Is-Pace-MODBUS-Protocol)
@@ -15,18 +17,20 @@ I strongly encourage you to read through this entire document, but here's a tabl
 - [Supported BMS Configuration (read / write)](#Supported-BMS-Configuration-read--write)
 - [Supported BMS Configuration (read / write) - **Protocol Version 25 ONLY**](#Supported-BMS-Configuration-read--write---Protocol-Version-25-ONLY)
 - [What Battery Packs are Supported?](#What-Battery-Packs-are-Supported)
-- [What ESPs and RPs are Supported?](#What-ESPs-and-RPs-are-Supported)
+- [What ESPs and RPs (and others) are Supported?](#What-ESPs-and-RPs-and-others-are-Supported)
 - [How do I wire my ESP to the RS485 port?](#How-do-I-wire-my-ESP-to-the-RS485-port)
 - [How do I wire my ESP to the RS232 port?](#How-do-I-wire-my-ESP-to-the-RS232-port)
 - [ESPHome configuration YAML](#ESPHome-configuration-YAML)
   - [A note on logging](#A-note-on-logging)
-  - [8266-specific preamble](#8266-specific-preamble)
+  - [8266-specific settings](#8266-specific-settings)
+  - [sub_devices](#sub_devices)
   - [external_components](#external_components)
   - [UART and pace_bms](#UART-and-pace_bms)
   - [Exposing the sensors (this is the good part!)](#Exposing-the-sensors-this-is-the-good-part)
     - [All read-only values](#All-read-only-values)
     - [Read-write values](#Read-write-values)
     - [Read-write values - Protocol Version 25 ONLY](#Read-write-values---Protocol-Version-25-ONLY)
+  - [Support for multiple battery packs](#Support-for-multiple-battery-packs)
   - [Example Config Files](#Example-Config-Files)
 - [How to configure a battery pack that's not in the supported list (yet)](#how-to-configure-a-battery-pack-thats-not-in-the-supported-list-yet)
 - [Decoding the Status Values (but you probably don't want to)](#decoding-the-status-values-but-you-probably-dont-want-to)
@@ -69,7 +73,7 @@ These BMSes speaking paceic version 25 will invariably use PbmsTools for their B
 
 ![PbmsTools Screenshot](images/PbmsTools.jpg)
 
-The exact look isn't important, just that the tabs and general layout looks like this.  This is PbmsTools regardless of any specific brand badging or interface tweaks, and indicates that your BMS supports protocol version 25.  
+The exact look (or whether it has "pretty colors" like this) isn't important, just that the tabs and layout look the same.  This is PbmsTools regardless of any specific brand badging or interface tweaks, and indicates that your BMS supports protocol version 25.  
 
 The default password to unlock all settings is "123456" incidentally.  But there are legitimately some settings you shouldn't mess with (I didn't implement those in this component - basically just the calibration stuff under the System Config tab).
 
@@ -80,137 +84,159 @@ Example protocol version 25 BMS front-panel:
 
 # What Is Pace MODBUS Protocol
 
-Some BMS firmwares also support reading data via MODBUS protocol over the RS485 port.  I haven't looked into this yet.  It seems like it may co-exist with Paceic version 25.  Documentation can be found [here](https://github.com/nkinnan/esphome-pace-bms/tree/main/protocol_documentation/modbus).  I may add support for this later, but since documentation is available, ESPHome already has native support for MODBUS, and syssi has already created an [ESPHome configuration for it](https://github.com/syssi/esphome-pace-bms), it's low priority.
+Some BMS firmwares also support reading data via MODBUS protocol over the RS485 port.  I haven't looked into this yet.  It seems like it may co-exist with Paceic version 25.  Documentation can be found [here](https://github.com/nkinnan/esphome-pace-bms/tree/main/protocol_documentation/modbus).  I may add support for this later, but since documentation is available, ESPHome already has native support for MODBUS, and syssi has already created an [ESPHome configuration for it](https://github.com/syssi/esphome-pace-bms), it's low priority.  
+
+Using modbus for your pack means you will not be able to set any configuration values though, which is a major benefit / advantage of this esphome component.  Modbus will also not be able to read multiple chained together packs, which is something this component can do.
 
 # Supported BMS Sensors (read only)
 
-- All "Analog Information"
-	- **Cell Count**
-	- **Cell Voltage** (V) - up to x16 depending on your battery pack
-	- **Temperature Count**
-	- **Temperature** (°C) - up to x6 depending on your battery pack, typically this will be:
-		-  *Cell Temperature* 1-4 
-		- *MOSFET Temperature* 
-		- *Environment Temperature*
-	- **Total Voltage** (V)
-	- **Current** (A) - positive or negative for charge/discharge
-	- **Power** (W) - positive or negative for charge/discharge
-	- **Remaining Capacity** (Ah)
-	- **Full Capacity** (Ah)
-	- **Design Capacity** (Ah)
-	- **State of Charge** (%)
-	- **State of Health** (%)
-	- **Cycle Count**
-	- **Minimum Cell Voltage** (V)
-	- **Maximum Cell Voltage** (V)
-	- **Average Cell Voltage** (V)
-	- **Max Cell Differential** (V) - difference between minimum and maximum cell voltage
-- All "Status Information" decoded to human-readable text format
-	- **Warning Text** - A list of any warnings reported by the BMS
-	- **Protection Text** - If the BMS has protected itself or the batteries, for example disabling charging if the temperature is too low, or a cell voltage is too high, it will be listed here
-	- **Fault Text** - A list of any faults reported by the BMS
-	- **System Text** - Current system status such as "Charging"
-	- **Configuration Text** - System configuration such as "Warning Buzzer Enabled"
-	- **Balancing Text** - If any cells are currently balancing, they will be listed here
-	- (individual status flag values) - These are what the text fields are decoded from, and are documented separately.  You probably won't need them, but they are available.  There are a lot of them, and they vary by protocol version and variant.
+These *read-only* settings are supported for all protocol versions and variants, for both master and slave type BMSes unless otherwise noted.
+
+- Multi-pack information *** Only available for `protocol_commandset: 0x25` and `type=MASTER`
+  - **BMS Count** - How many packs in total the master BMS reports being connected
+  - **Payload Count** - How many data payloads are returned by the master BMS on a broadcast request for analog or status information (this should match 'BMS Count' unless there is a problem) *** Additionally requires: `slave_query_mode: BROADCAST`
+
+- All "Analog Information" (no restrictions)
+  - **Cell Count**
+  - **Cell Voltage** (V) - up to x16 depending on your battery pack
+  - **Temperature Count**
+  - **Temperature** (°C) - up to x6 depending on your battery pack (there is one brand that has 8), order is not guaranteed and varies by manufacturer but a typical setup might be:
+    - *Cell Temperature* 1-4 
+    - *MOSFET Temperature* 
+    - *Environment Temperature*
+  - **Total Voltage** (V)
+  - **Current** (A) - positive or negative for charge/discharge
+  - **Power** (W) - positive or negative for charge/discharge
+  - **Remaining Capacity** (Ah)
+  - **Full Capacity** (Ah)
+  - **Design Capacity** (Ah)
+  - **State of Charge** (%)
+  - **State of Health** (%)
+  - **Cycle Count**
+  - **Minimum Cell Voltage** (V)
+  - **Maximum Cell Voltage** (V)
+  - **Average Cell Voltage** (V)
+  - **Max Cell Differential** (V) - difference between minimum and maximum cell voltage
+  
+- All "Status Information" decoded to human-readable text format (no restrictions)
+  - **Warning Text** - A list of any warnings reported by the BMS
+  - **Protection Text** - If the BMS has protected itself or the cells, for example disabling charging if the temperature is too low, or a cell voltage is too high, it will be listed here
+  - **Fault Text** - A list of any faults reported by the BMS
+  - **System Text** - Current system status such as "Charging"
+  - **Configuration Text** - System configuration such as "Warning Buzzer Enabled"
+  - **Balancing Text** - If any cells are currently balancing, they will be listed here
+  - **(individual status flag values)** - These are what the text fields are decoded from, and are documented separately.  You probably won't need them, but they are available.  There are a lot of them, and they vary by protocol version and variant.  See [Decoding the Status Values (but you probably don't want to)](#decoding-the-status-values-but-you-probably-dont-want-to) for more information on that.
+
+These *read-only* settings are only available for `type=MASTER`
+
 - **Hardware Version** - The BMS hardware version (string)
 - **Serial Number** - The BMS serial number (string)
 
 # Supported BMS Configuration (read / write)
 
-- **System Date and Time** - Allows access to the BMS internal real-time clock 
-- **Shutdown** - A button which sends the shutdown command to the BMS
+These *writable* settings are only available for `type=MASTER`
+
+- **System Date and Time** - Allows access to the BMS internal real-time clock
+- **Shutdown** - A button which sends the shutdown command to the BMS (this will effectively cause a "reboot" unless the BMS is idle - any charge or discharge current will cause the BMS to immediately "wake up" making this "look like" a reboot instead of a shutdown)
 
 # Supported BMS Configuration (read / write) - **Protocol Version 25 ONLY**
 
-It is difficult to find good documentation on either of these protocols.  All the references I have are incomplete.  For version 25 I was able to snoop on the exchanges between PbmsTools and my battery pack in order to decode all of the commands necessary for setting these configuration values.  However, the only battery pack I own which speaks version 20, is sending some very strange non-paceic commands for configuration settings.  Unfortunately I was unable to decode those, and even if I did, I'm not sure if it would apply to all brands of battery pack speaking version 20.  For that reason, I didn't pursue it further, and these settings are only applicable to battery packs speaking paceic version 25.
+Its difficult to find good documentation on these protocols.  All the references I have are incomplete.  For version 25 I was able to snoop on the exchanges between PbmsTools and my battery pack in order to decode all of the commands necessary for reading/setting these configuration values.  However, the only battery pack I own which speaks version 20, is sending some very strange non-paceic commands for configuration settings.  Unfortunately I was unable to decode those, and even if I did, I don't think it would apply to all brands of battery pack speaking version 20.  For that reason, I didn't pursue it further, and these settings are only applicable to battery packs speaking paceic version 25.
+
+These writable toggles and selects are supported by both `type=MASTER` and `type=SLAVE` BMSes, but for `type=SLAVE` they *become read-only*
 
 - Toggles (switches) that turn various features on/off
-	- **Buzzer Alarm**
-	- **LED Alarm**
-	- **Charge Current Limiter**
-	- **Charge MOSFET**
-	- **Discharge MOSFET**
+  - **Buzzer Alarm**
+  - **LED Alarm**
+  - **Charge Current Limiter**
+  - **Charge MOSFET**
+  - **Discharge MOSFET**
+
 - Selects (drop-lists) that allow configuring various features
-	- **Charge Current Limiter Gear** - set to High or Low
-	- **Protocol (CAN)** - Allows selection of various protocols spoken on the CAN bus, typically to match your inverter
-	- **Protocol (RS485)** - Allows selection of various protocols spoken on the RS485 bus, typically to match your inverter
-	- **Protocol Type** - Auto or Manual
-- Configuration
+  - **Charge Current Limiter Gear** - set to High or Low
+
+These writable settings are supported by `type=MASTER` BMSes only
+
+- Selects (drop-lists) that allow configuring various features
+  - **Protocol (CAN)** - Allows selection of various protocols spoken on the CAN bus, typically to match your inverter
+  - **Protocol (RS485)** - Allows selection of various protocols spoken on the RS485 bus, typically to match your inverter
+  - **Protocol Type** - Auto or Manual
+  
+- Configuration (editable numbers)
   - Cell Over Voltage
-	- **Cell Over Voltage Alarm** (V)
-	- **Cell Over Voltage Protection** (V)
-	- **Cell Over Voltage Protection Release** (V)
-	- **Cell Over Voltage Delay** (seconds)
+  - **Cell Over Voltage Alarm** (V)
+  - **Cell Over Voltage Protection** (V)
+  - **Cell Over Voltage Protection Release** (V)
+  - **Cell Over Voltage Delay** (seconds)
   - Pack Over Voltage
-	- **Pack Over Voltage Alarm** (V)
-	- **Pack Over Voltage Protection** (V)
-	- **Pack Over Voltage Protection Release** (V)
-	- **Pack Over Voltage Delay** (seconds)
+  - **Pack Over Voltage Alarm** (V)
+  - **Pack Over Voltage Protection** (V)
+  - **Pack Over Voltage Protection Release** (V)
+  - **Pack Over Voltage Delay** (seconds)
   - Cell Under Voltage
-	- **Cell Under Voltage Alarm** (V)
-	- **Cell Under Voltage Protection** (V)
-	- **Cell Under Voltage Protection Release** (V)
-	- **Cell Under Voltage Delay** (seconds)
+  - **Cell Under Voltage Alarm** (V)
+  - **Cell Under Voltage Protection** (V)
+  - **Cell Under Voltage Protection Release** (V)
+  - **Cell Under Voltage Delay** (seconds)
   - Pack Under Voltage
-	- **Pack Under Voltage Alarm** (V)
-	- **Pack Under Voltage Protection** (V)
-	- **Pack Under Voltage Protection Release** (V)
-	- **Pack Under Voltage Delay** (seconds)
+  - **Pack Under Voltage Alarm** (V)
+  - **Pack Under Voltage Protection** (V)
+  - **Pack Under Voltage Protection Release** (V)
+  - **Pack Under Voltage Delay** (seconds)
   - Discharge Over Current 1
-	- **Discharge Over Current 1 Alarm** (A)
-	- **Discharge Over Current 1 Protection** (A)
-	- **Discharge Over Current 1 Delay** (seconds)
+  - **Discharge Over Current 1 Alarm** (A)
+  - **Discharge Over Current 1 Protection** (A)
+  - **Discharge Over Current 1 Delay** (seconds)
   - Discharge Over Current 2
-	- **Discharge Over Current 2 Protection** (A)
-	- **Discharge Over Current 2 Delay** (seconds)
+  - **Discharge Over Current 2 Protection** (A)
+  - **Discharge Over Current 2 Delay** (seconds)
   - Discharge Short Circuit
-	- **Discharge Short Circuit Protection Delay** (milliseconds)
+  - **Discharge Short Circuit Protection Delay** (milliseconds)
   - Cell Balancing
-	- **Cell Balancing Threshold** (V)
-	- **Cell Balancing Delta** (V)
+  - **Cell Balancing Threshold** (V)
+  - **Cell Balancing Delta** (V)
   - Sleep
-	- **Sleep Cell Voltage** (V)
-	- **Sleep Delay** (minutes)
+  - **Sleep Cell Voltage** (V)
+  - **Sleep Delay** (minutes)
   - Full Charge
-	- **Full Charge Voltage** (V)
-	- **Full Charge Amps** (A)
+  - **Full Charge Voltage** (V)
+  - **Full Charge Amps** (A)
   - Low Charge
-	- **Low Charge Alarm** (%)
+  - **Low Charge Alarm** (%)
   - Charge Over Temperature
-	- **Charge Over Temperature Alarm** (°C)
-	- **Charge Over Temperature Protection** (°C)
-	- **Charge Over Temperature Protection Release** (°C)
+  - **Charge Over Temperature Alarm** (°C)
+  - **Charge Over Temperature Protection** (°C)
+  - **Charge Over Temperature Protection Release** (°C)
   - Discharge Over Temperature
-	- **Discharge Over Temperature Alarm** (°C)
-	- **Discharge Over Temperature Protection** (°C)
-	- **Discharge Over Temperature Protection Release** (°C)
+  - **Discharge Over Temperature Alarm** (°C)
+  - **Discharge Over Temperature Protection** (°C)
+  - **Discharge Over Temperature Protection Release** (°C)
   - Charge Under Temperature
-	- **Charge Under Temperature Alarm** (°C)
-	- **Charge Under Temperature Protection** (°C)
-	- **Charge Under Temperature Protection Release** (°C)
+  - **Charge Under Temperature Alarm** (°C)
+  - **Charge Under Temperature Protection** (°C)
+  - **Charge Under Temperature Protection Release** (°C)
   - Discharge Under Temperature
-	- **Discharge Under Temperature Alarm** (°C)
-	- **Discharge Under Temperature Protection** (°C)
-	- **Discharge Under Temperature Protection Release** (°C)
+  - **Discharge Under Temperature Alarm** (°C)
+  - **Discharge Under Temperature Protection** (°C)
+  - **Discharge Under Temperature Protection Release** (°C)
   - MOSFET Over Temperature
-	- **MOSFET Over Temperature Alarm** (°C)
-	- **MOSFET Over Temperature Protection** (°C)
-	- **MOSFET Over Temperature Protection Release** (°C)
+  - **MOSFET Over Temperature Alarm** (°C)
+  - **MOSFET Over Temperature Protection** (°C)
+  - **MOSFET Over Temperature Protection Release** (°C)
   - Environment Over Temperature
-	- **Environment Over Temperature Alarm** (°C)
-	- **Environment Over Temperature Protection** (°C)
-	- **Environment Over Temperature Protection Release** (°C)
+  - **Environment Over Temperature Alarm** (°C)
+  - **Environment Over Temperature Protection** (°C)
+  - **Environment Over Temperature Protection Release** (°C)
   - Environment Under Temperature
-	- **Environment Under Temperature Alarm** (°C)
-	- **Environment Under Temperature Protection** (°C)
-	- **Environment Under Temperature Protection Release** (°C)
+  - **Environment Under Temperature Alarm** (°C)
+  - **Environment Under Temperature Protection** (°C)
+  - **Environment Under Temperature Protection Release** (°C)
 
 # What Battery Packs are Supported?
 
 **As far as I know, many/most.**  Any not listed should simply require a slightly different configuration (or might re-use one of the existing ones).  
 
-However, I'd like to keep a full list here if only for search engine discoverability, so if you find that it does work with your battery pack, please contact me with the configuration settings required, the make/model of battery pack (and a link to the exact model on the manufacturer's website if possible), and what it reports for the hardware version.
+However, I'd like to keep a full list here if only for search engine discoverability, so if you find that it does work with your battery pack, please contact me ([file an issue](https://github.com/nkinnan/esphome-pace-bms/issues)) with the configuration settings required, the make/model of battery pack (and a link to the exact model on the manufacturer's website if possible), and what it reports for the hardware version.
 
 **If not listed**, for help figuring out the required settings to get your battery pack working, see [How to configure a battery pack that's not in the supported list (yet)](#how-to-configure-a-battery-pack-thats-not-in-the-supported-list-yet)
 
@@ -299,17 +325,17 @@ However, I'd like to keep a full list here if only for search engine discoverabi
     - Thank you johnmsole for reporting.
     - The MANA line appears to be a Sunsynk rebadge.  The Eenovance MANA 10.6 appears to be a rebadged Sunsunk SUN-BATT-10.65 for example.
 
-# What ESPs and RPs are Supported?
+# What ESPs and RPs (and others) are Supported?
 
-Both ESP8266 and ESP32 are supported, though an ESP32 class device is recommended.  The RP2040 (Raspberry Pi Pico W) should also work but I haven't tested it.
+Both ESP8266 and ESP32 are supported, though an ESP32 class device is recommended.  The RP2040 (Raspberry Pi Pico W) should also work but I haven't tested it.  Other SOCs supported by ESPHome (they keep expanding support) may work also.  Contact me ([file an issue](https://github.com/nkinnan/esphome-pace-bms/issues)) if you try one, just to let me know.
 
-Any board which gives you access to a hardware UART (both RX and TX) is fine.  Software UART on GPIO pins is not recommended.  
+Any board which gives you access to a hardware UART (both RX and TX) is fine.  Software UART on GPIO pins is *not recommended* and will likely result in dropped or corrupted messages.  
 
 You cannot connect the UART RX/TX pins directly to either the RS232 or RS485 port, a converter chip for RS485 or RS232 signal levels is required.  Some boards may have such a converter chip built-in, or you can use a breakout board.  
 
-RS485 will require at least one additional GPIO pin for flow control in addition to the UART RX and TX pins.  RS232 will require only the UART RX and TX.
+RS485 will require at least one additional GPIO pin for flow control in addition to the UART RX and TX pins (usually).  RS232 will require only the UART RX and TX.
 
-If using an 8266, you will need to redirect serial logs to the second UART (which is TX only, but that's fine for logging).  An example of how to do that is included below in the [YAML section](#8266-specific-preamble).
+If using an 8266, you will need to redirect serial logs to the second UART (which is TX only, but that's fine for logging).  An example of how to do that is included below in the [YAML section](#8266-specific-settings).
 
 # How do I wire my ESP to the RS485 port?
 
@@ -332,7 +358,7 @@ Connect the breakout board to the **BMS**:
 
 ![RJ-45 Socket and Connector with Pin Numbers and Color Codes](images/rj45.png)
 
-Lastly, don't forget to connect power (3.3v) and ground to the breakout board.
+Lastly, don't forget to connect power (3.3v, do *not* use 5v) and ground to the breakout board.
 
 # How do I wire my ESP to the RS232 port?
 
@@ -357,7 +383,7 @@ If cutting up a telephone extension cord, make sure it's "**dual line**" / has f
 
 ![RJ-11 Socket and Connector with Pin Numbers and Color Codes](images/rj11.png)
 
-Lastly, don't forget to connect power (3.3v) and ground to the breakout board.
+Lastly, don't forget to connect power (3.3v, do *not* use 5v) and ground to the breakout board.
 
 # ESPHome configuration YAML
 
@@ -371,18 +397,20 @@ I won't go over 1 since that will be specific to your setup, except to say that 
 
 sub-sections:
 - [A note on logging](#A-note-on-logging)
-- [8266-specific preamble](#8266-specific-preamble)
+- [8266-specific settings](#8266-specific-settings)
+- [sub_devices](#sub_devices)
 - [external_components](#external_components)
 - [UART and pace_bms](#UART-and-pace_bms)
 - [Exposing the sensors (this is the good part!)](#Exposing-the-sensors-this-is-the-good-part)
   - [All read-only values](#All-read-only-values)
   - [Read-write values](#Read-write-values)
   - [Read-write values - Protocol Version 25 ONLY](#Read-write-values---Protocol-Version-25-ONLY)
+- [Support for multiple battery packs](#Support-for-multiple-battery-packs)
 - [Example Config Files (in full)](#Example-Config-Files-in-full)
 
 ## A note on logging
 
-While initially setting up this component, I'd strongly recommend setting log level to VERY_VERBOSE.  You can reduce that back to INFO or higher once you confirm everything is working.  If you want to submit logs on an issue report, please gather them with log level VERY_VERBOSE as that will include the actual strings sent to/from the BMS over the UART.  You might want to remove many/most of the sensors when running at the VERY_VERBOSE level however, as a sensors publishing new values generates a **lot** of log output, and it's mainly the component logs that are important, not the sensor logs.
+While initially setting up this component, I'd strongly recommend setting log level to VERY_VERBOSE.  You can reduce that back to INFO or higher once you confirm everything is working.  If you want to submit logs on an issue report, please gather them with log level VERY_VERBOSE (*but* also reduce the number of sensors to a minimum, or the log will just be a mess!) as VERY_VERBOSE will include the actual strings sent to/from the BMS over the UART which is important for debugging.
 
 ```yaml
 logger:
@@ -391,30 +419,38 @@ logger:
   #level: VERBOSE
   level: VERY_VERBOSE
 ```
-Additionally, if you want to get serial logs over USB on a C3, S2 or S3, you should add this to your logger config:
+Additionally, if you want to get serial logs over USB, on *some boards* (different boards may or may not contain a USB-to-serial bridge chip) with *some ESP32 variants* (some variants have a software usb stack, some are dual-stack including a built-in hardware jtag option which functions similarly, but not the same, as a hardware USB-to-serial bridge chip), etc, then you may need to add something like this to your logger config. 
 
 ```yaml
 logger:
-  # needed for C3, S2 and S3 (and possibly others) to read logs via USB, depending on framework used
   hardware_uart: USB_CDC 
 ```
+On boards with two USB ports, this will depend on which port you're plugged into. This will also depend on whether you are using the Arduino or (recommended) ESP-IDF framework/platform. Usually the defaults work, but if you see no logs then you should double check the [esphome logger documentation](https://esphome.io/components/logger/#default-hardware-interfaces) for more details.
 
-## 8266-specific preamble
+## 8266-specific settings
 
-1) If using an 8266 in conjunction with web_server, you will want to add this to your esphome config.  It **massively** speeds up how quickly the 8266 can speak with the web_server dashboard by correcting a bug in the web server code.  Once [this PR](https://github.com/esphome/ESPAsyncWebServer/pull/41) goes through these lines can be removed.
-```yaml
-esphome:
-  libraries:
-    # massive improvement to event throughput to the on-device web_server dashboard
-    # can be removed once this PR goes through: https://github.com/esphome/ESPAsyncWebServer/pull/41
-    # but the web_server dashboard is basically useless on an 8266 without it
-    - ESPAsyncWebServer-esphome=https://github.com/nkinnan/ESPAsyncWebServer#async_event_source_yield
-```
-2) Since an 8266 only has 1.5 UARTs (a full UART 0 with rx+tx and half of a UART 1 with tx only) we need to redirect log output to UART 1 so we can fully utilize UART 0 for communication with the BMS.  You can do that like so:
+Since an 8266 only has 1.5 UARTs (a full UART 0 with rx+tx and half of a UART 1 with tx only) we need to redirect log output to UART 1 so we can fully utilize UART 0 for communication with the BMS.  You can do that like so:
 ```yaml
 logger:
   hardware_uart: UART1 # using UART0 for BMS communications
 ```
+
+## sub_devices
+
+If you have multiple battery packs, the easiest way to manage the "duplicate" sensor names is with esphome's [sub-devices](https://esphome.io/components/esphome/#sub-devices) functionality.
+
+```yaml
+esphome:
+  <...configuration...>
+
+  devices:
+    - id: device_group_master_bms_address_1
+      name: "Master BMS Address 01"
+    - id: device_group_slave_bms_address_2
+      name: "Slave BMS Address 02"
+```
+
+How to reference these sub-devices will be noted later in the relevant sections.  Basically all this does is allow you to prefix the sub-device name onto each sensors/etc so the names do not conflict between battery packs in a multi-pack setup.  You can and should omit this for a single battery pack (or if you have one ESP per pack).
 
 ## external_components
 
@@ -442,44 +478,90 @@ uart:
   rx_pin: GPIO1
   rx_buffer_size: 256
 ```
-* **baud_rate:** The most common value for baud_rate is 9600, but some BMSes are reported to use 19200 as well.  You should know what this value is from previously communicating with the BMS using the manufacturer's recommended software.
+* **baud_rate:** The most common value for baud_rate is 9600, but some BMSes are reported to use 19200 as well.  You should know what this value is, from previously communicating with the BMS using the manufacturer's recommended software.
 * **tx_pin / rx_pin:** Self-explanatory, see previous sections on wiring your ESP to the RS232 or RS485 port. 
-* **rx_buffer_size:** A minimum size of 256 is required for this component to function reliably.
+* **rx_buffer_size:** This value should match the `rx_buffer_size` set under the `pace_bms` component with `type=MASTER` (or with `type` omitted since MASTER is the default value).  A size of 256 is recommended for a single battery pack (or if you have one ESP per pack).  For a multiple battery pack setup, see [multi-pack configuration](#Support-for-multiple-battery-packs) for more information.
 ```yaml
 pace_bms:
-  id: pace_bms_at_address_1
+  id: master_pace_bms_at_address_1
   address: 1
   responding_address: 1
+  device_id: 
+
   uart_id: uart_0
   flow_control_pin: GPIO0 
   update_interval: 5s
-  request_throttle: 200ms # can be reduced to 50ms for protocol 25
-  response_timeout: 2000ms # can be reduced to 1000ms for protocol 25
+  request_throttle: 200ms # should be reduced to 50ms for protocol 25
+  response_timeout: 2000ms # may be reduced to 1000ms for protocol 25 (but if you're getting timeouts there's some kind of problem)
 
   protocol_commandset: 0x20 # example only
   protocol_variant: "EG4"   # example only
   protocol_version: 0x20    # example only
   battery_chemistry: 0x4A   # example only
+
+  # multi-pack configuration only (ignore/omit if you have only a single battery pack, or one ESP per pack)
+  type: MASTER
+  master_bms_id: master_pace_bms_at_address_1
+  slave_discovery_mode: NONE
+  slave_query_mode: BROADCAST
+  rx_buffer_size: 256
 ```
-* **address:** This is the address of your BMS, set with the DIP switches on the front next to the RS232 and RS485 ports.  **Important:** If you change the value of the DIP switches, you'll need to reset the BMS for the new address to take effect.  Either by flipping the breaker, or using something like a toothpick or push-pin to depress the recessed reset button.  The most common address values are 0 and 1, unless your battery packs are daisy chained.
-* **responding_address:** Do not include this by default. It should only be added if you need it. If you see an error log that looks like: `Response from wrong bus Id in header, expected 2 but got 1` that means you asked for data from the BMS at address 2, but the BMS at address 1 responded. This happens when your BMSes are daisy-chained together since only the master BMS will respond; it relays requests to the appropriate slave, but then responds "as itself" from it's own address, returning the slave data that you asked for. You will need to set `responding_address: 1` (or as appropriate, given the error log) to indicate that this is not actually an error. This can also happen if the BMS "thinks" it's a slave; if you're talking to a BMS on the RS232 port and it has its DIP switches set to an address greater than 1, it might respond "as if" it expects to be relayed by putting address 1 in the response header.
-* **uart_id:** The ID of the UART you configured.  This component currently requires one UART per BMS, though I'm considering a design change that would allow it to read "daisy chained" BMSes in the future.
-* **flow_control_pin:** If using RS232 this setting should be omitted.  If using RS485, this is required to be set, as it controls the direction of communication on the RS485 bus.  It should be connected to *both* the **DE** (Driver Output Enable) and **R̅E̅** (Receiver Output Enable, active low) pins on the RS485 adapter / breakout board.
-* **update_interval:** How often to query the BMS and publish whatever updated values are read back.  What queries are sent to the BMS is determined by what values you have requested to be published in [the rest of your configuration](#Exposing-the-sensors-this-is-the-good-part).
-* **request_throttle:** Minimum interval between sending requests to the BMS.  Increasing this may help if your BMS "locks up" after a while, it's probably getting overwhelmed.
-* **response_timeout:** Maximum time to wait for a response before "giving up" and sending the next.  Increasing this may help if your BMS "locks up" after a while, it's probably getting overwhelmed.
+Many of these settings are only applicable to a `type=MASTER` (or with type omitted since MASTER is the default value) BMS.  To configure a slave BMS in a multi-pack setup, see [multi-pack configuration](#Support-for-multiple-battery-packs).  
+
+* **address:** This is the address of your BMS, set with the DIP switches on the front next to the RS232 and RS485 ports.  **Important:** If you change the setting of the DIP switches, you'll need to reset the BMS for the new address to take effect.  Either by flipping the breaker, or using something like a toothpick or push-pin to depress the recessed reset button.  The lights on the front panel will flicker or "dance" if you have reset correctly.  You probably want to configure your pack as address 1 (this is the default if not specified), unless your battery packs are daisy chained in which case see [multi-pack configuration](#Support-for-multiple-battery-packs) for more information.
+* **responding_address:** Do not include this by default. It should only be added if you need it. If you see an error log that looks like: `Response from wrong bus Id in header, expected 2 but got 1` that means you asked for data from the BMS at address 2, but the BMS at address 1 responded (or at least appeared to). This can happen in certain multi-pack setups or in case of a BMS firmware bug. If you know that the response you are getting is correct, and from the correct BMS, you can ignore the error by setting this value appropriately based on the error log. An example where you might want to do this: you're talking to a BMS on the RS232 port that is part of a master/slave setup, and it has its DIP switches set to address 2; it might respond "as if" it expects to be relayed by the master BMS at address 1 by putting a 1 in the response header instead of it's own address.
+* **device_id:** This has nothing to do with the BMS, it is actually to support the [sub-devices](https://esphome.io/components/esphome/#sub-devices) functionality of esphome.  This can be important in multi-pack setups, but for a single battery pack (or if you have one ESP per pack) this can (and should) be omitted.  See [multi-pack configuration](#Support-for-multiple-battery-packs) for more information.  
+> [!NOTE]
+> The `device_id` property is propagated down to each sensor platform which points back to this `pace_bms` entry, and then subsequently down to the individual sensors.  This is contrary to esphome spec, and implemented via custom yaml config processing by this component.  It just makes things easier, so that you don't have to mark each and every sensor with the `device_id` of the sub-device you would like it assigned to.  For this "magic" to work however, the `pace_bms` configuration entry must come prior to the sensor configuration entries in your device yaml, and the yaml must be a single unified file.  If you're using things like `!include` however, then the individual sensor/etc platforms will need to be decorated with `device_id` instead.  This is also noted later on, where it becomes relevant.
+* **uart_id:** The ID of the UART you configured, which is connected to either the RS232 or RS485 port of the BMS.
+* **flow_control_pin:** If NOT using RS485, this setting should be omitted.  If using RS485, this is required to be set (usually), as it controls the direction of communication on the RS485 bus.  It should be connected to *both* the **DE** (Driver Output Enable) and **R̅E̅** (Receiver Output Enable, active low) pins on the RS485 adapter / breakout board.  If you are using a RS485 adapter / breakout board which does not have **DE** and **R̅E̅** pins (or possibly just a single pin labeled "write" or something similar) then it may be a chip that snoops on traffic and performs this function automatically, in which case this setting can be omitted.  Enabling this setting requires the ESP to halt all processing while data is sent to the BMS, so it should not be specified unless it is actually needed.
+* **update_interval:** How often to query the BMS and publish whatever updated values are read back.  What queries are sent to the BMS is determined by what values you have requested to be published (what sensors you have configured, essentially) in [the rest of your configuration](#Exposing-the-sensors-this-is-the-good-part).
+* **request_throttle:** Minimum interval between sending requests to the BMS.  Increasing this may help if your BMS "locks up" after a while, it's probably getting overwhelmed.  
+* **response_timeout:** Maximum time to wait for a response before "giving up" and sending the next.  Increasing this may help if your BMS "locks up" after a while, it's probably getting overwhelmed.  Multi-pack setups will require a significantly larger value for this setting since querying the master BMS for all data requires it to then query all the slaves before responding (depending on `slave_query_mode`).  See [multi-pack configuration](#Support-for-multiple-battery-packs) for more information.
+
 * **protocol_commandset, protocol_variant, protocol_version,** and **battery_chemistry:** 
    - Consider these as a set.  Use values from the [known supported list](#What-Battery-Packs-are-Supported), or determine them manually by following the steps in [How to configure a battery pack that's not in the supported list (yet)](#how-to-configure-a-battery-pack-thats-not-in-the-supported-list-yet)
 
+* **type:** Defaults to `MASTER`, can be either `MASTER` or `SLAVE`.  Should be omitted if you only have a single battery pack (or if you have one ESP per pack).  See [multi-pack configuration](#Support-for-multiple-battery-packs) for more information.  
+* **master_bms_id:** For a `type=SLAVE` BMS only, this is the `id` of the `type=MASTER` BMS that this is slaved to.
+* **slave_discovery_mode:** Defaults to `NONE`, can be one of: `NONE`, `RELAY`, `BROADCAST`, or `RELAY_AND_BROADCAST`.  Should be omitted ~~if you only have a single battery pack (or if you have one ESP per pack)~~ unless you are debugging issues with a multi-pack setup.  It does not do anything useful in a working config, but it might be something that I ask you to get logs from in order to help troubleshoot.  See [multi-pack configuration](#Support-for-multiple-battery-packs) for more information.  
+* **slave_query_mode:** Defaults to `BROADCAST`, can be either: `BROADCAST`, or `RELAY`.  Should be omitted if you only have a single battery pack (or if you have one ESP per pack).  This determines how slave battery packs are queried in a multi-pack setup.  See [multi-pack configuration](#Support-for-multiple-battery-packs) for more information.
+* **rx_buffer_size:** This value should match the `rx_buffer_size` set under the `uart` component.  A size of 256 is recommended for a single battery pack (or if you have one ESP per pack) and is the default if not specified.  For a multiple battery pack setup, see [multi-pack configuration](#Support-for-multiple-battery-packs) for more information.
+
 ## Exposing the sensors (this is the good part!)
 
-Next, lets go over making things available to the web_server dashboard, homeassistant, or mqtt.  This is going to differ slightly depending on what data you want to read back from the BMS, I will provide a complete example which you can pare down to only what you want to see.
+Next, lets go over making things available to the web_server dashboard, homeassistant, or mqtt.  This is going to differ slightly depending on what data you want to read back from the BMS.  I will provide a complete example which you can pare down to only what you want to see.
+
+> [!WARNING]
+> If you're using [sub-devices](https://esphome.io/components/esphome/#sub-devices) in a multi-pack setup, and also things like `!include` that cause your yaml to be broken up into multiple files, then the custom yaml processing allowing you to add `device_id` under `pace_bms` alone, and have that automatically "flow down" to all sensors may not work.  However, you can still avoid the need to decorate each individual sensor with `device_id` by simply adding it at the platform level instead:
+> ```yaml
+> sensor:
+>  - platform: pace_bms
+>    pace_bms_id: master_pace_bms_at_address_1
+>    device_id: device_group_master_bms_address_1
+>
+>    <...sensors for BMS 1...>
+>
+>   - platform: pace_bms
+>     pace_bms_id: slave_pace_bms_at_address_2
+>     device_id: device_group_slave_bms_address_2
+>
+>    <...sensors for BMS 2...>
+> ```
+> (and so on)
 
 ### All read-only values
 ```yaml
 sensor:
   - platform: pace_bms
-    pace_bms_id: pace_bms_at_address_1
+    pace_bms_id: master_pace_bms_at_address_1
+
+    # (`type=MASTER` and `protocol_commandset=0x25` BMSes only)
+    bms_count:
+      name: "BMS Count"
+    # (`type=MASTER` and `protocol_commandset=0x25` BMSes only, requires `slave_query_mode: BROADCAST`)
+    payload_count:
+      name: "Payload Count"
 
     cell_count:
       name: "Cell Count"
@@ -520,8 +602,8 @@ sensor:
     temperature_count:
       name: "Temperature Count"
 
-    # Generally the first four temperatures are cell measurements and the last two are 
-    # MOSFET / Environment or Environment / MOSFET with the order of those two depending on manufacturer
+    # Generally the first four (or last four) temperatures are cell measurements and the other two are 
+    # MOSFET / Environment or Environment / MOSFET, but this is manufacturer specific
     temperature_01:
       name: "Cell Temperature 1"
     temperature_02:
@@ -567,10 +649,12 @@ sensor:
 
 text_sensor:
   - platform: pace_bms
-    pace_bms_id: pace_bms_at_address_1
+    pace_bms_id: master_pace_bms_at_address_1
 
+    # (`type=MASTER` BMSes only)
     hardware_version:
       name: "Hardware Version"
+    # (`type=MASTER` BMSes only)
     serial_number: # not available on EG4 protocol 0x20 variant
       name: "Serial Number"
 
@@ -592,18 +676,22 @@ text_sensor:
 
 ### Read-write values
 
+All of these writable settings are supported by `type=MASTER` BMSes only
+
 ```yaml
 datetime:
- - platform: pace_bms
-   pace_bms_id: pace_bms_at_address_1
+  - platform: pace_bms
+    pace_bms_id: master_pace_bms_at_address_1
 
-   system_date_and_time:
-     name: "System Date and Time"
+    # (`type=MASTER` BMSes only)
+    system_date_and_time:
+      name: "System Date and Time"
 
 button:
   - platform: pace_bms
-    pace_bms_id: pace_bms_at_address_1
+    pace_bms_id: master_pace_bms_at_address_1
 
+    # (`type=MASTER` BMSes only)
     shutdown:
       name: "Shutdown" # will actually "reboot" if the battery is charging/discharging - it only stays shut down if idle
 ```
@@ -611,41 +699,52 @@ button:
 
 ```yaml
 switch:
- - platform: pace_bms
-   pace_bms_id: pace_bms_at_address_1
+  - platform: pace_bms
+    pace_bms_id: master_pace_bms_at_address_1
 
-   buzzer_alarm:
-     name: "Buzzer Alarm"
-   led_alarm:
-     name: "Led Alarm"
-   charge_current_limiter:
-     name: "Charge Current Limiter"
-   charge_mosfet:
-     name: "Charge Mosfet"
-   discharge_mosfet:
-     name: "Discharge Mosfet"
+    # (for `type=SLAVE` BMSes this will become read-only)
+    buzzer_alarm:
+      name: "Buzzer Alarm"
+    # (for `type=SLAVE` BMSes this will become read-only)
+    led_alarm:
+      name: "Led Alarm"
+    # (for `type=SLAVE` BMSes this will become read-only)
+    charge_current_limiter:
+      name: "Charge Current Limiter"
+    # (for `type=SLAVE` BMSes this will become read-only)
+    charge_mosfet:
+      name: "Charge Mosfet"
+    # (for `type=SLAVE` BMSes this will become read-only)
+    discharge_mosfet:
+      name: "Discharge Mosfet"
 
 
 select:
   - platform: pace_bms
-    pace_bms_id: pace_bms_at_address_1
+    pace_bms_id: master_pace_bms_at_address_1
 
+    # (for `type=SLAVE` BMSes this will become read-only)
     charge_current_limiter_gear:
       name: "Charge Current Limiter Gear"
 
     # setting the protocol is possible on some version 25 BMSes but not all
+    # (`type=MASTER` BMSes only)
     protocol_can:
       name: "Protocol (CAN)"
+    # (`type=MASTER` BMSes only)
     protocol_rs485:
       name: "Protocol (RS485)"
+    # (`type=MASTER` BMSes only)
     protocol_type:
       name: "Protocol (Type)"
 
 
 number:
   - platform: pace_bms
-    pace_bms_id: pace_bms_at_address_1
- 
+    pace_bms_id: master_pace_bms_at_address_1
+
+    # (the ENTIRE `number` section is available for `type=MASTER` BMSes only)
+
     cell_over_voltage_alarm:
       name: "Cell Over Voltage Alarm" 
     cell_over_voltage_protection:
@@ -770,76 +869,217 @@ number:
     environment_under_temperature_protection_release:
       name: "Environment Under Temperature Protection Release"
 ```
+
+## Support for multiple battery packs
+
+This section will describe the changes you need to make, to move from a single battery pack to a multiple battery pack setup.  If you don't have a single pack (master BMS, at address 1) working already, you should go back and do that first.  Then you can return here to see how to add additional slave packs into your config.
+
+Multiple battery packs is currently only supported for protocol 0x25.  It is unlikely I will add multi-pack support for 0x20 due to the fact that it's older, most of the issues / requests that I get are about 0x25, and there are a number of 0x20 variants (with wildly different protocol formats) so the test burden would be high.  If you have a setup with multiple battery packs speaking a 0x20 protocol variant, feel free to contact me about it ([file an issue](https://github.com/nkinnan/esphome-pace-bms/issues)) but I will probably decline even if you're able to test that out for me.  You can still get data from all of them by simply using one ESP per BMS.
+
+The first thing to do is mark your BMS as MASTER.  This is the default, but it's good practice anyway to make it explicit in a multi-pack setup.  Makes the yaml easier to read.
+```yaml
+pace_bms:
+  # the rest of the master BMS settings are omitted for brevity
+  type: MASTER
+```
+
+Next, you need to decide whether to query the slave BMSes in "broadcast" or "relay" mode.  Broadcast means that this component will send a request for information to a special 0xFF address which means "return data for all packs in a single response".  Relay means that this component will ask the master BMS to forward requests for information to each slave one at a time.  Differences:
+1) Broadcast requires a larger receive buffer for both this component and it's uart.  Generally 256 * (number of BMSes).  Relay mode can leave the buffer sizes at 256 since responses aren't returned in concatenated form.  The buffers still won't get large enough, even with a 16 pack setup, to become a big issue unless your ESP is under memory pressure for some reason (running LVGL maybe?)
+2) I have seen cases where the firmware has bugs in it when responding in relay mode.  Payload sizes are off by a couple of bytes, that kind of thing.  This can cause warnings or errors in processing.  But it's still a valid method, and available to select if you have some reason to do so.
+
+Both modes are fully supported, but my recommendation is to use broadcast mode:
+
+```yaml
+pace_bms:
+  # the rest of the master BMS settings are omitted for brevity
+  type: MASTER
+  slave_query_mode: BROADCAST
+```
+
+For `slave_query_mode: BROADCAST`, you will also need to update the `response_timeout` setting to allow the master BMS enough time to gather the requested information from all the slaves.  A safe starting point would be 2 seconds times the number of BMSes.  So if you have 4 battery packs, that would be 8 seconds, or `8000ms` (this is probably a bit excessive, but "better safe than sorry" - you can reduce it with testing, although there is not much benefit to doing so):
+
+```yaml
+pace_bms:
+  # the rest of the master BMS settings are omitted for brevity
+  type: MASTER
+  slave_query_mode: BROADCAST
+  response_timeout: 8000ms # 2000 * 4, for four battery packs in this system
+```
+If you've set `slave_query_mode: RELAY` then I would set the `response_timeout` to `2000ms`.
+
+Next, again for `slave_query_mode: BROADCAST` only, we need to calculate how big to make the receive buffers.  This should be 256 times the number of BMSes.  So if you have 4 battery packs, the value would be 1024.  Be sure to set this on both your uart and pace_bms configs:
+
+```yaml
+uart:
+  id: uart_0
+  rx_buffer_size: 1024 # 256 * 4, for four battery packs in this system
+
+pace_bms:
+  # the rest of the master BMS settings are omitted for brevity
+  type: MASTER
+  slave_query_mode: BROADCAST
+  response_timeout: 8000ms # 2000 * 4, for four battery packs in this system
+  uart_id: uart_0
+  rx_buffer_size: 1024 # 256 * 4, for four battery packs in this system
+```
+
+Next, lets define some slave BMSes.  The configuration section for slaves will be much shorter than for the master BMS.  You will need to convert the yaml entry into a list by using the "-" list item indicator and increasing the indentation.  Be sure to specify both the address and a pointer back to the master BMS:
+
+```yaml
+pace_bms:
+  - id: master_pace_bms_at_address_1 
+    type: MASTER
+    address: 1
+    # the rest of the master BMS settings are omitted for brevity
+
+  - id: slave_pace_bms_at_address_2
+    type: SLAVE
+    master_bms_id: master_pace_bms_at_address_1 # slaves must point back to the master
+    address: 2
+
+  - id: slave_pace_bms_at_address_3
+    type: SLAVE
+    master_bms_id: master_pace_bms_at_address_1 # slaves must point back to the master
+    address: 3
+
+  - id: slave_pace_bms_at_address_4
+    type: SLAVE
+    master_bms_id: master_pace_bms_at_address_1 # slaves must point back to the master
+    address: 4
+```
+
+That's pretty much it as far as slave BMSes go.  All of the configuration is done through the entry for the master BMS.  Just make sure you have the address settings correct, matching the DIP switch settings on the front panel of the battery pack.
+
+You'll also want to be sure to make use of ESPHome's [sub-device functionality](https://esphome.io/components/esphome/#sub-devices).  By specifying a sub-device name, you can copy / paste the sensor configuration for your master BMS to your slaves without having to change the sensor names.  Otherwise something like "Total Voltage" on both the master, and a slave, would "collide" and fail to compile.  By specifying a "sub-device name" for each of the BMSes, those sensor names will be prefixed and end up looking something like "Master BMS Address 1 Total Voltage" and "Slave BMS Address 2 Total Voltage" and so on, so there is no naming collision.  The exact naming of the sensors depends on how you define your sub-devices.  You can do that like this:
+
+```yaml
+esphome:
+  devices:
+    - id: device_group_master_bms_address_1
+      name: "Master BMS Address 1"
+    - id: device_group_slave_bms_address_2
+      name: "Slave BMS Address 2"
+    - id: device_group_slave_bms_address_3
+      name: "Slave BMS Address 3"
+    - id: device_group_slave_bms_address_4
+      name: "Slave BMS Address 4"
+
+pace_bms:
+  - id: master_pace_bms_at_address_1 
+    type: MASTER
+    address: 1
+    # the rest of the master BMS settings are omitted for brevity
+    device_id: device_group_master_bms_address_1 # group all sensors for this BMS under a sub-device name to avoid sensor naming collisions
+
+  - id: slave_pace_bms_at_address_2
+    type: SLAVE
+    master_bms_id: master_pace_bms_at_address_1 
+    address: 2
+    device_id: device_group_slave_bms_address_2 # group all sensors for this BMS under a sub-device name to avoid sensor naming collisions
+ 
+  - id: slave_pace_bms_at_address_3
+    type: SLAVE
+    master_bms_id: master_pace_bms_at_address_1 
+    address: 3
+    device_id: device_group_slave_bms_address_3 # group all sensors for this BMS under a sub-device name to avoid sensor naming collisions
+
+  - id: slave_pace_bms_at_address_4
+    type: SLAVE
+    master_bms_id: master_pace_bms_at_address_1 
+    address: 4
+    device_id: device_group_slave_bms_address_4 # group all sensors for this BMS under a sub-device name to avoid sensor naming collisions
+```
+
+Note that normally you would need to decorate each and every individual sensor, switch, button, and so forth, with `device_id:` in order to achieve this, but special processing of the device yaml has been implemented in this component.  This special processing allows you to specify the `device_id:` only at the root `pace_bms` node.  The device_id will "flow down" to each sensor/control platform entry, and then to all the individual sensors and controls.  The only catch is that you must specify the `pace_bms` section in your device yaml before any of those other components like sensor, switch, text_sensor, etc. in order for this "magic" to happen.
+
+Finally, just copy/paste all the relevant sensors etc that you'd like to have exposed for each of the slave BMSes.  Point the new platform section to the slave BMS id instead of the master BMS id.
+
+```yaml
+sensor:
+  # sensors for the master BMS at address 1
+  - platform: pace_bms
+    pace_bms_id: master_pace_bms_at_address_1 
+
+    total_voltage:
+      name: "Total Voltage" # this will look like "Master BMS Address 1 Total Voltage" because we used sub-device grouping
+
+    #<... more sensors ...>
+
+  # sensors for the slave BMS at address 2
+  - platform: pace_bms
+    pace_bms_id: slave_pace_bms_at_address_2
+
+    total_voltage:
+      name: "Total Voltage" # this will look like "Slave BMS Address 2 Total Voltage" because we used sub-device grouping
+
+    #<... more sensors ...>
+
+  # sensors for the slave BMS at address 3
+  - platform: pace_bms
+    pace_bms_id: slave_pace_bms_at_address_3
+
+    total_voltage:
+      name: "Total Voltage" # this will look like "Slave BMS Address 3 Total Voltage" because we used sub-device grouping
+
+    #<... more sensors ...>
+
+  # sensors for the slave BMS at address 4
+  - platform: pace_bms
+    pace_bms_id: slave_pace_bms_at_address_4
+
+    total_voltage:
+      name: "Total Voltage" # this will look like "Slave BMS Address 4 Total Voltage" because we used sub-device grouping
+
+    #<... more sensors ...>
+```
+
+Each of the platforms: select, sensor, switch, text_sensor, will work the same way.  
+
+Only certain sensors/controls are supported for slave BMSes.  You can't set the time, or configure alarm voltage levels on a slave BMS for example.  This is all documented in the [exposing the sensors](#Exposing-the-sensors-this-is-the-good-part) section.  If you add a sensor/component to a slave BMS that is not supported, you will just get a compile error.  Remove the unsupported entry and you're good to go.  All the important monitoring sensors and status readouts are supported for slaves, but due to inherent protocol limitations, the writable entries in particular simply will not work without a direct connection.  If you need to set alarm voltage levels, etc. then you'll have to connect an ESP directly to the slave BMS for that.  Afterward, you can go back to the master/slave configuration for ongoing monitoring.
+
 ## Example Config Files
 
-If you already have a config for your board, you should use that, and then copy/paste/modify the relevant parts of [ESPHome configuration YAML](#ESPHome-configuration-YAML).  You'll need to read that anyway to understand what these files contain.  But here are some basic configs if starting from scratch.  The main difference between them is just the board declaration (and the 8266-specific settings as noted in [8266-specific preamble](#8266-specific-preamble))
+If you already have a config for your board, you should use that, and then copy/paste/modify the relevant parts of [ESPHome configuration YAML](#ESPHome-configuration-YAML).  You'll need to read that anyway to understand what these files contain.  But here are some basic configs if starting from scratch.  The main difference between them is just the board declaration (and the 8266-specific settings as noted in [8266-specific settings](#8266-specific-settings))
+
+Update: Maintaining all the different boards was a pain, so I have trimmed this down to just ESP8266 and ESP32.  If you have a variant board, or an RP2040 or whatever, you'll need to update the board section of the config.  
+
+Multi-pack is not recommended on an ESP8266.  The 8266 already has difficulting supporting this component, but it can be done if you trim down the config enough - remove webserver and anything else that's "extra", and probably remove some of the sensors you don't need as well.  I was able to get it running an an 8266 board with 1MB flash, but it was a stretch.
 
 ### Protocol 25
 
 - ESP8266
-	- [esp8266-0x25-full.yaml](esp8266-0x25-full.yaml) - all sensor values, plus BMS configuration settings
-		- This will fail in a boot loop due to out of memory on the 8266 with it's limited resources.  You will need to trim down the number of sensors before uploading.  This is the only example config file with this issue.
-	- [esp8266-0x25-sensors_only.yaml](esp8266-0x25-sensors_only.yaml) - sensor values only
+  - [esp8266-0x25-full.yaml](esp8266-0x25-full.yaml) - all sensors, plus BMS configuration settings
+    - This will fail in a boot loop due to out of memory on the 8266 with it's limited resources.  You will need to trim down the number of sensors before uploading.  This is the only example config file with this issue.
+  - [esp8266-0x25-sensors_only.yaml](esp8266-0x25-sensors_only.yaml) - sensors only
+
 - ESP32
-	- [esp32-0x25-full.yaml](esp32-0x25-full.yaml) - all sensor values, plus BMS configuration settings
-	- [esp32-0x25-sensors_only.yaml](esp32-0x25-sensors_only.yaml) - sensor values only
-- ESP32-C3
-	- [esp32-c3-0x25-full.yaml](esp32-c3-0x25-full.yaml) - all sensor values, plus BMS configuration settings
-	- [esp32-c3-0x25-sensors_only.yaml](esp32-c3-0x25-sensors_only.yaml) - sensor values only
-- ESP32-S2
-	- [esp32-s2-0x25-full.yaml](esp32-s2-0x25-full.yaml) - all sensor values, plus BMS configuration settings
-	- [esp32-s2-0x25-sensors_only.yaml](esp32-s2-0x25-sensors_only.yaml) - sensor values only
-- ESP32-S3
-	- [esp32-s3-0x25-full.yaml](esp32-s3-0x25-full.yaml) - all sensor values, plus BMS configuration settings
-	- [esp32-s3-0x25-sensors_only.yaml](esp32-s3-0x25-sensors_only.yaml) - sensor values only
-- RP2040
-	- [rp2040-0x25-full.yaml](rp2040-0x25-full.yaml) - all sensor values, plus BMS configuration settings
-	- [rp2040-0x25-sensors_only.yaml](rp2040-0x25-sensors_only.yaml) - sensor values only
+  - [esp32-0x25-full.yaml](esp32-0x25-full.yaml) - all sensors, plus BMS configuration settings
+  - [esp32-0x25-sensors_only.yaml](esp32-0x25-sensors_only.yaml) - sensors only
+  
+- ESP32 (1 Master, 3 Slaves)
+  - [esp32-0x25-full-multi-pack.yaml](esp32-0x25-full-multi-pack.yaml) - all sensors, plus BMS configuration settings (configuration settings for MASTER only! SLAVEs do not support configuration, but do support most sensors)
+  - [esp32-0x25-sensors_only-multi-pack.yaml](esp32-0x25-sensors_only-multi-pack.yaml) - sensors only, for both MASTER and SLAVE (all sensors for master, most sensors are supported for SLAVEs)
 
 ### Protocol 20, EG4 variant
 
 - ESP8266
-	- [esp8266-0x20-EG4.yaml](esp8266-0x20-EG4.yaml)
+  - [esp8266-0x20-EG4.yaml](esp8266-0x20-EG4.yaml)
 - ESP32
-	- [esp32-0x20-EG4.yaml](esp32-0x20-EG4.yaml)
-- ESP32-C3
-	- [esp32-c3-0x20-EG4.yaml](esp32-c3-0x20-EG4.yaml)
-- ESP32-S2
-	- [esp32-s2-0x20-EG4.yaml](esp32-s2-0x20-EG4.yaml)
-- ESP32-S3
-	- [esp32-s3-0x20-EG4.yaml](esp32-s3-0x20-EG4.yaml)
-- RP2040
-	- [rp2040-0x20-EG4.yaml](rp2040-0x20-EG4.yaml)
+  - [esp32-0x20-EG4.yaml](esp32-0x20-EG4.yaml)
 
 ### Protocol 20, SEPLOS variant
 
 - ESP8266
-	- [esp8266-0x20-SEPLOS.yaml](esp8266-0x20-SEPLOS.yaml)
+  - [esp8266-0x20-SEPLOS.yaml](esp8266-0x20-SEPLOS.yaml)
 - ESP32
-	- [esp32-0x20-SEPLOS.yaml](esp32-0x20-SEPLOS.yaml)
-- ESP32-C3
-	- [esp32-c3-0x20-SEPLOS.yaml](esp32-c3-0x20-SEPLOS.yaml)
-- ESP32-S2
-	- [esp32-s2-0x20-SEPLOS.yaml](esp32-s2-0x20-SEPLOS.yaml)
-- ESP32-S3
-	- [esp32-s3-0x20-SEPLOS.yaml](esp32-s3-0x20-SEPLOS.yaml)
-- RP2040
-	- [rp2040-0x20-SEPLOS.yaml](rp2040-0x20-SEPLOS.yaml)
+  - [esp32-0x20-SEPLOS.yaml](esp32-0x20-SEPLOS.yaml)
 
 ### Protocol 20, PYLON variant
 
 - ESP8266
-	- [esp8266-0x20-PYLON.yaml](esp8266-0x20-PYLON.yaml)
+  - [esp8266-0x20-PYLON.yaml](esp8266-0x20-PYLON.yaml)
 - ESP32
-	- [esp32-0x20-PYLON.yaml](esp32-0x20-PYLON.yaml)
-- ESP32-C3
-	- [esp32-c3-0x20-PYLON.yaml](esp32-c3-0x20-PYLON.yaml)
-- ESP32-S2
-	- [esp32-s2-0x20-PYLON.yaml](esp32-s2-0x20-PYLON.yaml)
-- ESP32-S3
-	- [esp32-s3-0x20-PYLON.yaml](esp32-s3-0x20-PYLON.yaml)
-- RP2040
-	- [rp2040-0x20-PYLON.yaml](rp2040-0x20-PYLON.yaml)
+  - [esp32-0x20-PYLON.yaml](esp32-0x20-PYLON.yaml)
 
 # How to configure a battery pack that's not in the supported list (yet)
 
@@ -858,7 +1098,7 @@ pace_bms:
 
 text_sensor:
   - platform: pace_bms
-    pace_bms_id: pace_bms_at_address_1
+    pace_bms_id: master_pace_bms_at_address_1
 
     hardware_version:
       name: "Hardware Version"
@@ -866,7 +1106,7 @@ text_sensor:
       name: "Serial Number"
 ```
 
-If you get reasonable values back for the two text sensors, you're basically done.  Just fill out your YAML with [the rest of the settings / readouts you want exposed](#Exposing-the-sensors-this-is-the-good-part) and you can skip the rest of this section.  Please contact me with your make/model/hardware version as well as the settings you used so that I can add it to the known supported list.
+If you get reasonable values back for the two text sensors, you're basically done.  Just fill out your YAML with [the rest of the settings / readouts you want exposed](#Exposing-the-sensors-this-is-the-good-part) and you can skip the rest of this section.  Please contact me ([file an issue](https://github.com/nkinnan/esphome-pace-bms/issues)) with your make/model/hardware version as well as the settings you used so that I can add it to the known supported list.
 
 If it didn't work, no worries, continue reading.
 
@@ -892,7 +1132,7 @@ We need at least one and as many as four configuration values to speak with the 
     * SEPLOS
     * EG4
 
-    Protocol 25 has no variants I am aware of.
+    Protocol 25 has no variants I am aware of.  (It can have some slight differences in response payload, usually extra values tacked onto the end of the get analog/status information commands, but doesn't require special code paths like the version 20 variants.)
 4) **`battery_chemistry`** - In almost all cases this will be 0x46, but some manufacturers who intentionally break compatibility will use a different value (or actually legitimately have a different chemistry in some cases).
 
 Step 3: the commandset
@@ -918,7 +1158,7 @@ pace_bms:
   battery_chemistry: 0x4A # only if not 46
 ```  
 
-If your commandset value is 0x25 then you're basically done.  Just fill out your YAML with [the rest of the settings / readouts you want exposed](#Exposing-the-sensors-this-is-the-good-part) and you can skip the rest of this section.  Please contact me with your make/model/hardware version as well as the settings you used so that I can add it to the known supported list.
+If your commandset value is 0x25 then you're basically done.  Just fill out your YAML with [the rest of the settings / readouts you want exposed](#Exposing-the-sensors-this-is-the-good-part) and you can skip the rest of this section.  Please contact me ([file an issue](https://github.com/nkinnan/esphome-pace-bms/issues)) with your make/model/hardware version as well as the settings you used so that I can add it to the known supported list.
 
 Step 4: If the BMS is lying
 -
@@ -946,7 +1186,7 @@ If you had to guess which commandset like this, you can figure out if it is "tru
 ```yaml
 text_sensor:
   - platform: pace_bms
-    pace_bms_id: pace_bms_at_address_1
+    pace_bms_id: master_pace_bms_at_address_1
 
     hardware_version:
       name: "Hardware Version"
@@ -954,7 +1194,7 @@ text_sensor:
       name: "Serial Number"
 ```
 
-Once again, if your "true" commandset value is determined to be 0x25 then you're basically done.  Just fill out your YAML with [the rest of the settings / readouts you want exposed](#Exposing-the-sensors-this-is-the-good-part) and you can skip the rest of this section.  Please contact me with your make/model/hardware version as well as the settings you used so that I can add it to the known supported list.
+Once again, if your "true" commandset value is determined to be 0x25 then you're basically done.  Just fill out your YAML with [the rest of the settings / readouts you want exposed](#Exposing-the-sensors-this-is-the-good-part) and you can skip the rest of this section.  Please contact me ([file an issue](https://github.com/nkinnan/esphome-pace-bms/issues)) with your make/model/hardware version as well as the settings you used so that I can add it to the known supported list.
 
 Step 5: An extra step for commandset 20
 -
@@ -963,14 +1203,14 @@ If you determined the commandset to be 0x20 then you also need to figure out whi
 ```yaml
 sensor:
   - platform: pace_bms
-    pace_bms_id: pace_bms_at_address_1
+    pace_bms_id: master_pace_bms_at_address_1
     
     cell_count:
       name: "Cell Count"
 
 text_sensor:
   - platform: pace_bms
-    pace_bms_id: pace_bms_at_address_1
+    pace_bms_id: master_pace_bms_at_address_1
 
     system_status:
       name: "System Status"
@@ -994,18 +1234,18 @@ pace_bms:
   battery_chemistry: 0x4A # only if not 46
   protocol_variant: "EG4"
 ```
-If you only got the yellow highlighted line, you're going to have to guess.  Try the following values and see which one gives you the most "correct" data: 
+If you only got the yellow highlighted line, you're going to have to guess.  Try the following values and see which one gives you "correct" data: 
 * PYLON
 * SEPLOS
 * EG4
 
 The problem areas are going to be the last of the analog values such as Cycle Count, State of Charge and State of Health, and all of the status values.  If those don't make sense, or the BMS doesn't respond, it's the wrong protocol variant.  
 
-Once you've figured out the proper protocol variant that returns sensible status values, just fill out your YAML with [the rest of the settings / readouts you want exposed](#Exposing-the-sensors-this-is-the-good-part) and you can skip the rest of this section. Please contact me with your make/model/hardware version as well as the settings you used so that I can add it to the known supported list.
+Once you've figured out the proper protocol variant that returns sensible status values, just fill out your YAML with [the rest of the settings / readouts you want exposed](#Exposing-the-sensors-this-is-the-good-part) and you can skip the rest of this section. Please contact me ([file an issue](https://github.com/nkinnan/esphome-pace-bms/issues)) with your make/model/hardware version as well as the settings you used so that I can add it to the known supported list.
 
 If it didn't work
 -
-If none of the protocol variants work properly, or you have a different issue following these steps, I'd be interested to hear about it.  You may have a BMS speaking a protocol variant I haven't come across or found documentation for.  Please file an issue and provide me with whatever data you can, including make/model/hardware version (in particular the hardware version reported by pace_bms if you can get it to respond to that request, or from the manufacturer's recommended BMS software if not), and VERY_VERBOSE level logs.  Even better if you can provide me some COM port traces between the manufacturer's software and the BMS or even a protocol spec doc you found by googling your hardware.  I might be able to implement the new variant for you.
+If none of the protocol variants work properly, or you have a different issue following these steps, I'd be interested to hear about it.  You may have a BMS speaking a protocol variant I haven't come across or found documentation for.  Please [file an issue](https://github.com/nkinnan/esphome-pace-bms/issues) and provide me with whatever data you can, including make/model/hardware version (in particular the hardware version reported by pace_bms if you can get it to respond to that request, or from the manufacturer's recommended BMS software if not), and VERY_VERBOSE level logs.  Even better if you can provide me some COM port traces between the manufacturer's software and the BMS or even a protocol spec doc you found by googling your hardware.  I might be able to implement the new variant for you.
 
 
 # Decoding the Status Values (but you probably don't want to)
@@ -1014,7 +1254,7 @@ No seriously, just use the text values I painstakingly decoded for you :)  This 
 
 Really? OK, well here's the thing.  They're completely different for every single protocol version and variant.  Which is why I consolidated them into something you can display and understand.  But you might have a specific use case that necessitates decoding those bit flags yourself, so I did painstakingly expose and document them all.  Lets go over them one by one.
 
-This is going to be tedious, so I'll "cheat" a bit by sharing some raw enums from the code.
+This is going to be tedious, so I'll "cheat" a bit by sharing some raw enums and decoding functions from the sourcecode.
 
 sub-sections:
   - [Paceic Version 25 RAW Status Values](#Paceic-Version-25-RAW-Status-Values)
@@ -1034,7 +1274,7 @@ First, the full set of YAML config entries:
 ```yaml
 sensor:
   - platform: pace_bms
-    pace_bms_id: pace_bms_at_address_1
+    pace_bms_id: master_pace_bms_at_address_1
 
     # specific raw status values that you probably don't need, but the values / bit flags are documented anyway
     # you can probably just use the 6 text sensor equivalents which encompass all of these values and are suitable for display
@@ -1120,14 +1360,36 @@ The entries:
 All contain a scalar value.  They indicate a warning but not a fault or error (yet) on their respective measurement.  Possible values:
 
 ```C++
-	enum StatusInformation_WarningValues
-	{
-		WV_BelowLowerLimitValue = 1,
-		WV_AboveUpperLimitValue = 2,
-		WV_UserDefinedFaultRangeStartValue = 0x80,
-		WV_UserDefinedFaultRangeEndValue = 0xEF,
-		WV_OtherFaultValue = 0xF0,
-	};
+  enum StatusInformation_WarningValues
+  {
+    WV_BelowLowerLimitValue = 1,
+    WV_AboveUpperLimitValue = 2,
+    WV_UserDefinedFaultRangeStartValue = 0x80,
+    WV_UserDefinedFaultRangeEndValue = 0xEF,
+    WV_OtherFaultValue = 0xF0,
+  };
+
+  const std::string PaceBmsProtocolV25::DecodeWarningValue(const uint8_t val)
+  {
+    if (val == 0) {
+      // calling code error
+      return "(no warning)";
+    }
+    if (val == WV_BelowLowerLimitValue) {
+      return std::string("Below Lower Limit");
+    }
+    if (val == WV_AboveUpperLimitValue) {
+      return std::string("Above Upper Limit");
+    }
+    if (val >= WV_UserDefinedFaultRangeStartValue && val <= WV_UserDefinedFaultRangeEndValue) {
+      return std::string("User Defined Fault");
+    }
+    if (val == WV_OtherFaultValue) {
+      return std::string("Other Fault");
+    }
+
+    return std::string("Unknown Fault Value");
+  }
 ```
 
 
@@ -1138,28 +1400,93 @@ The entries:
 Contain bitflags.  They indicate a warning but not a fault or error (yet).  Possible values:
 
 ```C++
-	enum StatusInformation_Warning1Flags
-	{
-		W1F_UndefinedWarning1Bit8 = (1 << 7),
-		W1F_UndefinedWarning1Bit7 = (1 << 6),
-		W1F_DischargeCurrentBit = (1 << 5),
-		W1F_ChargeCurrentBit = (1 << 4),
-		W1F_LowTotalVoltageBit = (1 << 3),
-		W1F_HighTotalVoltageBit = (1 << 2),
-		W1F_LowCellVoltageBit = (1 << 1),
-		W1F_HighCellVoltageBit = (1 << 0),
-	};
-	enum StatusInformation_Warning2Flags
-	{
-		W2F_LowPower = (1 << 7),
-		W2F_HighMosfetTemperature = (1 << 6),
-		W2F_LowEnvironmentalTemperature = (1 << 5),
-		W2F_HighEnvironmentalTemperature = (1 << 4),
-		W2F_LowDischargeTemperature = (1 << 3),
-		W2F_LowChargeTemperature = (1 << 2),
-		W2F_HighDischargeTemperature = (1 << 1),
-		W2F_HighChargeTemperature = (1 << 0),
-	};
+  enum StatusInformation_Warning1Flags
+  {
+    W1F_UndefinedWarning1Bit8 = (1 << 7),
+    W1F_UndefinedWarning1Bit7 = (1 << 6),
+    W1F_DischargeCurrentBit = (1 << 5),
+    W1F_ChargeCurrentBit = (1 << 4),
+    W1F_LowTotalVoltageBit = (1 << 3),
+    W1F_HighTotalVoltageBit = (1 << 2),
+    W1F_LowCellVoltageBit = (1 << 1),
+    W1F_HighCellVoltageBit = (1 << 0),
+  };
+
+  const std::string PaceBmsProtocolV25::DecodeWarningStatus1Value(const uint8_t val)
+  {
+    std::string str;
+
+    if ((val & W1F_UndefinedWarning1Bit8) != 0) {
+      str.append("Undefined WarnState1 Bit7 Warning; ");
+    }
+    if ((val & W1F_UndefinedWarning1Bit7) != 0) {
+      str.append("Undefined WarnState1 Bit6 Warning; ");
+    }
+    if ((val & W1F_DischargeCurrentBit) != 0) {
+      str.append("Discharge Current Warning; ");
+    }
+    if ((val & W1F_ChargeCurrentBit) != 0) {
+      str.append("Charge Current Warning; ");
+    }
+    if ((val & W1F_LowTotalVoltageBit) != 0) {
+      str.append("Low Total Voltage Warning; ");
+    }
+    if ((val & W1F_HighTotalVoltageBit) != 0) {
+      str.append("High Total Voltage Warning; ");
+    }
+    if ((val & W1F_LowCellVoltageBit) != 0) {
+      str.append("Low Cell Voltage Warning; ");
+    }
+    if ((val & W1F_HighCellVoltageBit) != 0) {
+      str.append("High Cell Voltage Warning; ");
+    }
+
+    return str;
+  }
+
+  enum StatusInformation_Warning2Flags
+  {
+    W2F_LowPower = (1 << 7),
+    W2F_HighMosfetTemperature = (1 << 6),
+    W2F_LowEnvironmentalTemperature = (1 << 5),
+    W2F_HighEnvironmentalTemperature = (1 << 4),
+    W2F_LowDischargeTemperature = (1 << 3),
+    W2F_LowChargeTemperature = (1 << 2),
+    W2F_HighDischargeTemperature = (1 << 1),
+    W2F_HighChargeTemperature = (1 << 0),
+  };
+
+  const std::string PaceBmsProtocolV25::DecodeWarningStatus2Value(const uint8_t val)
+  {
+    std::string str;
+
+    if ((val & W2F_LowPower) != 0) {
+      str.append("Low Power Warning; ");
+    }
+    if ((val & W2F_HighMosfetTemperature) != 0) {
+      str.append("High MOSFET Temperature Warning; ");
+    }
+    if ((val & W2F_LowEnvironmentalTemperature) != 0) {
+      str.append("Low Environmental Temperature Warning; ");
+    }
+    if ((val & W2F_HighEnvironmentalTemperature) != 0) {
+      str.append("High Environmental Temperature Warning; ");
+    }
+    if ((val & W2F_LowDischargeTemperature) != 0) {
+      str.append("Low Discharge Temperature Warning; ");
+    }
+    if ((val & W2F_LowChargeTemperature) != 0) {
+      str.append("Low Charge Temperature Warning; ");
+    }
+    if ((val & W2F_HighDischargeTemperature) != 0) {
+      str.append("High Discharge Temperature Warning; ");
+    }
+    if ((val & W2F_HighChargeTemperature) != 0) {
+      str.append("High Charge Temperature Warning; ");
+    }
+
+    return str;
+  }
 ```
 
 The entry:
@@ -1167,23 +1494,66 @@ The entry:
 
 Contains bitflags.  It is 16 bits wide.  One for each cell.  If the bit is set, it indicates that cell is currently balancing.  Cell 1 is the least significant bit.
 
+```C++
+    std::string balancingText;
+    for (int i = 0; i < 16; i++)
+    {
+      if ((balanceState & (1 << i)) != 0)
+      {
+        balancingText.append(std::string("Cell ") + std::to_string(i + 1) + " is balancing; ");
+      }
+    }
+```
+
 The entry:
 - `system_status_value`
 
 Contains bitflags.  These flags indicate the current status of the BMS.  Possible values:
 
 ```C++
-	enum StatusInformation_SystemFlags
-	{
-		SF_HeaterActiveBit = (1 << 7),
-		SF_AlternateCurrentInBit = (1 << 6),
-		SF_ChargingBit = (1 << 5),
-		SF_PositiveNegativeTerminalsReversedBit = (1 << 4),
-		SF_DischargingBit = (1 << 3),
-		SF_DischargeMosfetOnBit = (1 << 2),
-		SF_ChargeMosfetOnBit = (1 << 1),
-		SF_ChargeCurrentLimiterTurnedOffBit = (1 << 0), // this is the inverse of CF_ChargeCurrentLimiterEnabledBit
-	};
+  enum StatusInformation_SystemFlags
+  {
+    SF_HeaterActiveBit = (1 << 7),
+    SF_AlternateCurrentInBit = (1 << 6),
+    SF_ChargingBit = (1 << 5),
+    SF_PositiveNegativeTerminalsReversedBit = (1 << 4),
+    SF_DischargingBit = (1 << 3),
+    SF_DischargeMosfetOnBit = (1 << 2),
+    SF_ChargeMosfetOnBit = (1 << 1),
+    SF_ChargeCurrentLimiterTurnedOffBit = (1 << 0), // this is the inverse of CF_ChargeCurrentLimiterEnabledBit
+  };
+
+  const std::string PaceBmsProtocolV25::DecodeStatusValue(const uint8_t val)
+  {
+    std::string str;
+
+    if ((val & SF_HeaterActiveBit) != 0) {
+      str.append("Heater Active; "); 
+    }
+    if ((val & SF_AlternateCurrentInBit) != 0) {
+      str.append("Alternate Current In; ");
+    }
+    if ((val & SF_ChargingBit) != 0) {
+      str.append("Charging; ");
+    }
+    if ((val & SF_PositiveNegativeTerminalsReversedBit) != 0) {
+      str.append("Positive/Negative Terminals Reversed; "); 
+    }
+    if ((val & SF_DischargingBit) != 0) {
+      str.append("Discharging; ");
+    }
+    if ((val & SF_DischargeMosfetOnBit) != 0) {
+      str.append("Discharge MOSFET On; ");
+    }
+    if ((val & SF_ChargeMosfetOnBit) != 0) {
+      str.append("Charge MOSFET On; ");
+    }
+    if ((val & SF_ChargeCurrentLimiterTurnedOffBit) != 0) {
+      str.append("Charge Current Limiter Disabled; ");
+    }
+
+    return str;
+  }
 ```
 
 
@@ -1193,17 +1563,49 @@ The entry:
 Contains bitflags.  These flags indicate the current configuration of the BMS.  Possible values:
 
 ```C++
-	enum StatusInformation_ConfigurationFlags
-	{
-		CF_UndefinedConfigurationStatusBit8 = (1 << 7),
-		CF_StaticBalanceBit = (1 << 6),
-		CF_LedAlarmEnabledBit = (1 << 5),
-		CF_ChargeCurrentLimiterEnabledBit = (1 << 4),
-		CF_ChargeCurrentLimiterLowGearSetBit = (1 << 3),
-		CF_DischargeMosfetTurnedOff = (1 << 2), // it is not documented, but in practice I have seen this flag being set to mean "Discharge MOSFET turned OFF" in addition to the SF_DischargeMosfetOnBit flag being cleared
-		CF_ChargeMosfetTurnedOff = (1 << 1), // it is not documented, but in practice I have seen this flag being set to mean "Charge MOSFET turned OFF" in addition to the SF_ChargeMosfetOnBit flag being cleared
-		CF_BuzzerAlarmEnabledBit = (1 << 0),
-	};
+  enum StatusInformation_ConfigurationFlags
+  {
+    CF_UndefinedConfigurationStatusBit8 = (1 << 7),
+    CF_StaticBalanceBit = (1 << 6),
+    CF_LedAlarmEnabledBit = (1 << 5),
+    CF_ChargeCurrentLimiterEnabledBit = (1 << 4),
+    CF_ChargeCurrentLimiterLowGearSetBit = (1 << 3),
+    CF_DischargeMosfetTurnedOff = (1 << 2), // it is not documented, but in practice I have seen this flag being set to mean "Discharge MOSFET turned OFF" in addition to the SF_DischargeMosfetOnBit flag being cleared
+    CF_ChargeMosfetTurnedOff = (1 << 1), // it is not documented, but in practice I have seen this flag being set to mean "Charge MOSFET turned OFF" in addition to the SF_ChargeMosfetOnBit flag being cleared
+    CF_BuzzerAlarmEnabledBit = (1 << 0),
+  };
+
+  const std::string PaceBmsProtocolV25::DecodeConfigurationStatusValue(const uint8_t val)
+  {
+    std::string str;
+
+    if ((val & CF_UndefinedConfigurationStatusBit8) != 0) {
+      str.append("Undefined ConfigurationStatus Bit8 Set; ");
+    }
+    if ((val & CF_StaticBalanceBit) != 0) {
+      str.append("Static Balance ('Enabled'?); "); // "Enabled" ??????????????
+    }
+    if ((val & CF_LedAlarmEnabledBit) != 0) {
+      str.append("Warning LED Enabled; ");
+    }
+    if ((val & CF_ChargeCurrentLimiterEnabledBit) != 0) {
+      str.append("Charge Current Limiter Enabled (" + std::string((val & CF_ChargeCurrentLimiterLowGearSetBit) != 0 ? "Low Gear" : "High Gear") + "); ");
+    }
+    //if ((val & CF_ChargeCurrentLimiterLowGearSetBit) != 0) {
+    //  str.append("Current limit low-gear Set; ");
+    //}
+    if ((val & CF_DischargeMosfetTurnedOff) != 0) {
+      str.append("Discharge MOSFET Turned Off; ");
+    }
+    if ((val & CF_ChargeMosfetTurnedOff) != 0) {
+      str.append("Charge MOSFET Turned Off; ");
+    }
+    if ((val & CF_BuzzerAlarmEnabledBit) != 0) {
+      str.append("Warning Buzzer Enabled; ");
+    }
+
+    return str;
+  }
 ```
 
 
@@ -1213,28 +1615,94 @@ The entry:
 Contain bitflags.  These flags indicate that action is being taken by the BMS to protect itself.  Possible values:
 
 ```C++
-	enum StatusInformation_Protection1Flags
-	{
-		P1F_ChargerHighVoltageInProtect1Bit = (1 << 7),
-		P1F_ShortCircuitProtect1Bit = (1 << 6),
-		P1F_DischargeCurrentProtect1Bit = (1 << 5),
-		P1F_ChargeCurrentProtect1Bit = (1 << 4),
-		P1F_LowTotalVoltageProtect1Bit = (1 << 3),
-		P1F_HighTotalVoltageProtect1Bit = (1 << 2),
-		P1F_LowCellVoltageProtect1Bit = (1 << 1),
-		P1F_HighCellVoltageProtect1Bit = (1 << 0),
-	};
-	enum StatusInformation_Protection2Flags
-	{
-		P2F_FullyProtect2Bit = (1 << 7),
-		P2F_LowEnvironmentalTemperatureProtect2Bit = (1 << 6),
-		P2F_HighEnvironmentalTemperatureProtect2Bit = (1 << 5),
-		P2F_HighMosfetTemperatureProtect2Bit = (1 << 4),
-		P2F_LowDischargeTemperatureProtect2Bit = (1 << 3),
-		P2F_LowChargeTemperatureProtect2Bit = (1 << 2),
-		P2F_HighDischargeTemperatureProtect2Bit = (1 << 1),
-		P2F_HighChargeTemperatureProtect2Bit = (1 << 0),
-	};
+  enum StatusInformation_Protection1Flags
+  {
+    P1F_ChargerHighVoltageInProtect1Bit = (1 << 7),
+    P1F_ShortCircuitProtect1Bit = (1 << 6),
+    P1F_DischargeCurrentProtect1Bit = (1 << 5),
+    P1F_ChargeCurrentProtect1Bit = (1 << 4),
+    P1F_LowTotalVoltageProtect1Bit = (1 << 3),
+    P1F_HighTotalVoltageProtect1Bit = (1 << 2),
+    P1F_LowCellVoltageProtect1Bit = (1 << 1),
+    P1F_HighCellVoltageProtect1Bit = (1 << 0),
+  };
+
+  const std::string PaceBmsProtocolV25::DecodeProtectionStatus1Value(const uint8_t val)
+  {
+    std::string str;
+
+    if ((val & P1F_ChargerHighVoltageInProtect1Bit) != 0) {
+      str.append("Charger High Voltage In Protect; ");
+    }
+    if ((val & P1F_ShortCircuitProtect1Bit) != 0) {
+      str.append("Short Circuit Protect; ");
+    }
+    if ((val & P1F_DischargeCurrentProtect1Bit) != 0) {
+      str.append("Discharge Current Protect; ");
+    }
+    if ((val & P1F_ChargeCurrentProtect1Bit) != 0) {
+      str.append("Charge Current Protect; ");
+    }
+    if ((val & P1F_LowTotalVoltageProtect1Bit) != 0) {
+      str.append("Low Total Voltage Protect; ");
+    }
+    if ((val & P1F_HighTotalVoltageProtect1Bit) != 0) {
+      str.append("High Total Voltage Protect; ");
+    }
+    if ((val & P1F_LowCellVoltageProtect1Bit) != 0) {
+      str.append("Low Cell Voltage Protect; ");
+    }
+    if ((val & P1F_HighCellVoltageProtect1Bit) != 0) {
+      str.append("High Cell Voltage Protect; ");
+    }
+
+    return str;
+  }
+
+  enum StatusInformation_Protection2Flags
+  {
+    P2F_FullyProtect2Bit = (1 << 7),
+    P2F_LowEnvironmentalTemperatureProtect2Bit = (1 << 6),
+    P2F_HighEnvironmentalTemperatureProtect2Bit = (1 << 5),
+    P2F_HighMosfetTemperatureProtect2Bit = (1 << 4),
+    P2F_LowDischargeTemperatureProtect2Bit = (1 << 3),
+    P2F_LowChargeTemperatureProtect2Bit = (1 << 2),
+    P2F_HighDischargeTemperatureProtect2Bit = (1 << 1),
+    P2F_HighChargeTemperatureProtect2Bit = (1 << 0),
+  };
+
+  const std::string PaceBmsProtocolV25::DecodeProtectionStatus2Value(const uint8_t val)
+  {
+    std::string str;
+
+    if ((val & P2F_FullyProtect2Bit) != 0) {
+      // ********************* based on (poor) documentation and inference, /possibly/ this is not a protection flag, but means: the pack has been fully charged, the SoC and total capacity have been updated in the firmware
+      str.append("'Fully' protect bit???; "); // Might mean fully charged?
+    }
+    if ((val & P2F_LowEnvironmentalTemperatureProtect2Bit) != 0) {
+      str.append("Low Environmental Temperature Protect; ");
+    }
+    if ((val & P2F_HighEnvironmentalTemperatureProtect2Bit) != 0) {
+      str.append("High Environmental Temperature Protect; ");
+    }
+    if ((val & P2F_HighMosfetTemperatureProtect2Bit) != 0) {
+      str.append("High MOSFET Temperature Protect; ");
+    }
+    if ((val & P2F_LowDischargeTemperatureProtect2Bit) != 0) {
+      str.append("Low Discharge Temperature Protect; ");
+    }
+    if ((val & P2F_LowChargeTemperatureProtect2Bit) != 0) {
+      str.append("Low Charge Temperature Protect; ");
+    }
+    if ((val & P2F_HighDischargeTemperatureProtect2Bit) != 0) {
+      str.append("High Discharge Temperature Protect; ");
+    }
+    if ((val & P2F_HighChargeTemperatureProtect2Bit) != 0) {
+      str.append("High Charge Temperature Protect; ");
+    }
+
+    return str;
+  }
 ```
 
 
@@ -1244,17 +1712,49 @@ The entry:
 Contains bitflags.  These flags indicate the BMS is faulted, a more serious condition than a protection being enabled.  Generally this means the hardware has failed in some way.  Possible values:
 
 ```C++
-	enum StatusInformation_FaultFlags
-	{
-		FF_HeaterBit = (1 << 7),
-		FF_CCBBit = (1 << 6),
-		FF_VCCSamplingBit = (1 << 5),
-		FF_CellBit = (1 << 4),
-		FF_CommBit = (1 << 3),
-		FF_NTCBit = (1 << 2),
-		FF_DischargeMosfetBit = (1 << 1),
-		FF_ChargeMosfetBit = (1 << 0),
-	};
+  enum StatusInformation_FaultFlags
+  {
+    FF_HeaterBit = (1 << 7),
+    FF_CCBBit = (1 << 6),
+    FF_VCCSamplingBit = (1 << 5),
+    FF_CellBit = (1 << 4),
+    FF_CommBit = (1 << 3),
+    FF_NTCBit = (1 << 2),
+    FF_DischargeMosfetBit = (1 << 1),
+    FF_ChargeMosfetBit = (1 << 0),
+  };
+
+  const std::string PaceBmsProtocolV25::DecodeFaultStatusValue(const uint8_t val)
+  {
+    std::string str;
+
+    if ((val & FF_HeaterBit) != 0) {
+      str.append("Heater Fault; ");
+    }
+    if ((val & FF_CCBBit) != 0) {
+      str.append("CCB Fault; ");
+    }
+    if ((val & FF_VCCSamplingBit) != 0) {
+      str.append("VCC Sampling Fault; ");
+    }
+    if ((val & FF_CellBit) != 0) {
+      str.append("Cell fault; ");
+    }
+    if ((val & FF_CommBit) != 0) {
+      str.append("Comm Fault; "); //only on later PACE 
+    }
+    if ((val & FF_NTCBit) != 0) {
+      str.append("NTC fault; ");
+    }
+    if ((val & FF_DischargeMosfetBit) != 0) {
+      str.append("Discharge MOSFET fault; ");
+    }
+    if ((val & FF_ChargeMosfetBit) != 0) {
+      str.append("Charge MOSFET fault; ");
+    }
+
+    return str;
+  }
 ```
 </details>
 (click header to expand/collapse section)
@@ -1270,7 +1770,7 @@ First, the full set of YAML config entries:
 ```yaml
 sensor:
   - platform: pace_bms
-    pace_bms_id: pace_bms_at_address_1
+    pace_bms_id: master_pace_bms_at_address_1
 
     # specific raw status values that you probably don't need, but the values / bit flags are documented anyway
     # you can probably just use the 6 text sensor equivalents which encompass all of these values and are suitable for display
@@ -1349,13 +1849,13 @@ The entries:
 All contain a scalar value.  They indicate a warning but not a fault or error (yet) on their respective measurement.  Possible values:
 
 ```C++
-	enum StatusInformation_WarningValues
-	{
-		WV_Normal = 0,
-		WV_BelowLowerLimitValue = 1,
-		WV_AboveUpperLimitValue = 2,
-		WV_OtherFaultValue = 0xF0,
-	};
+  enum StatusInformation_WarningValues
+  {
+    WV_Normal = 0,
+    WV_BelowLowerLimitValue = 1,
+    WV_AboveUpperLimitValue = 2,
+    WV_OtherFaultValue = 0xF0,
+  };
 ```
 
 The entry:
@@ -1364,17 +1864,17 @@ The entry:
 Contains bitflags.  It's unclear from the documentation whether these are "warning" or "protection" flags.  I chose to implement them as "protection" but if you have a PYLON BMS and can tell me otherwise I'm happy to better classify them.  Possible values:
 
 ```C++
-		enum StatusInformation_Status1
-		{
-			S1_PackUnderVoltage = (1 << 7),
-			S1_ChargeTemperatureProtection = (1 << 6),
-			S1_DischargeTemperatureProtection = (1 << 5),
-			S1_DischargeOverCurrent = (1 << 4),
-			S1_UndefinedStatus1Bit4 = (1 << 3),
-			S1_ChargeOverCurrent = (1 << 2),
-			S1_CellUnderVoltage = (1 << 1),
-			S1_PackOverVoltage = (1 << 0),
-		};
+    enum StatusInformation_Status1
+    {
+      S1_PackUnderVoltage = (1 << 7),
+      S1_ChargeTemperatureProtection = (1 << 6),
+      S1_DischargeTemperatureProtection = (1 << 5),
+      S1_DischargeOverCurrent = (1 << 4),
+      S1_UndefinedStatus1Bit4 = (1 << 3),
+      S1_ChargeOverCurrent = (1 << 2),
+      S1_CellUnderVoltage = (1 << 1),
+      S1_PackOverVoltage = (1 << 0),
+    };
 ```
 
 The entry:
@@ -1383,17 +1883,17 @@ The entry:
 Contains bitflags.  These flags indicate the current configuration of the BMS.  Possible values:
 
 ```C++
-		enum StatusInformation_Status2
-		{
-			S2_UndefinedStatus2Bit8 = (1 << 7),
-			S2_UndefinedStatus2Bit7 = (1 << 6),
-			S2_UndefinedStatus2Bit6 = (1 << 5),
-			S2_UndefinedStatus2Bit5 = (1 << 4),
-			S2_UsingBatteryPower = (1 << 3),
-			S2_DischargeMosfetOn = (1 << 2),
-			S2_ChargeMosfetOn = (1 << 1),
-			S2_PrechargeMosfetOn = (1 << 0),
-		};
+    enum StatusInformation_Status2
+    {
+      S2_UndefinedStatus2Bit8 = (1 << 7),
+      S2_UndefinedStatus2Bit7 = (1 << 6),
+      S2_UndefinedStatus2Bit6 = (1 << 5),
+      S2_UndefinedStatus2Bit5 = (1 << 4),
+      S2_UsingBatteryPower = (1 << 3),
+      S2_DischargeMosfetOn = (1 << 2),
+      S2_ChargeMosfetOn = (1 << 1),
+      S2_PrechargeMosfetOn = (1 << 0),
+    };
 ```
 
 The entry:
@@ -1402,17 +1902,17 @@ The entry:
 Contains bitflags.  These flags indicate the current system state of the BMS.  Possible values:
 
 ```C++
-		enum StatusInformation_Status3
-		{
-			S3_Charging = (1 << 7),
-			S3_Discharging = (1 << 6),
-			S3_HeaterOn = (1 << 5),
-			S3_UndefinedStatus3Bit5 = (1 << 4),
-			S3_FullyCharged = (1 << 3),
-			S3_UndefinedStatus3Bit3 = (1 << 2),
-			S3_UndefinedStatus3Bit2 = (1 << 1),
-			S3_Buzzer = (1 << 0),
-		};
+    enum StatusInformation_Status3
+    {
+      S3_Charging = (1 << 7),
+      S3_Discharging = (1 << 6),
+      S3_HeaterOn = (1 << 5),
+      S3_UndefinedStatus3Bit5 = (1 << 4),
+      S3_FullyCharged = (1 << 3),
+      S3_UndefinedStatus3Bit3 = (1 << 2),
+      S3_UndefinedStatus3Bit2 = (1 << 1),
+      S3_Buzzer = (1 << 0),
+    };
 ```
 
 The entries:
@@ -1422,28 +1922,28 @@ The entries:
 Contains bitflags.  These flags indicate a cell fault.  Possible values:
 
 ```C++
-		enum StatusInformation_Status4
-		{
-			S4_Cell08Fault = (1 << 7),
-			S4_Cell07Fault = (1 << 6),
-			S4_Cell06Fault = (1 << 5),
-			S4_Cell05Fault = (1 << 4),
-			S4_Cell04Fault = (1 << 3),
-			S4_Cell03Fault = (1 << 2),
-			S4_Cell02Fault = (1 << 1),
-			S4_Cell01Fault = (1 << 0),
-		};
-		enum StatusInformation_Status5
-		{
-			S5_Cell16Fault = (1 << 7),
-			S5_Cell15Fault = (1 << 6),
-			S5_Cell14Fault = (1 << 5),
-			S5_Cell13Fault = (1 << 4),
-			S5_Cell12Fault = (1 << 3),
-			S5_Cell11Fault = (1 << 2),
-			S5_Cell10Fault = (1 << 1),
-			S5_Cell09Fault = (1 << 0),
-		};
+    enum StatusInformation_Status4
+    {
+      S4_Cell08Fault = (1 << 7),
+      S4_Cell07Fault = (1 << 6),
+      S4_Cell06Fault = (1 << 5),
+      S4_Cell05Fault = (1 << 4),
+      S4_Cell04Fault = (1 << 3),
+      S4_Cell03Fault = (1 << 2),
+      S4_Cell02Fault = (1 << 1),
+      S4_Cell01Fault = (1 << 0),
+    };
+    enum StatusInformation_Status5
+    {
+      S5_Cell16Fault = (1 << 7),
+      S5_Cell15Fault = (1 << 6),
+      S5_Cell14Fault = (1 << 5),
+      S5_Cell13Fault = (1 << 4),
+      S5_Cell12Fault = (1 << 3),
+      S5_Cell11Fault = (1 << 2),
+      S5_Cell10Fault = (1 << 1),
+      S5_Cell09Fault = (1 << 0),
+    };
 ```
 </details>
 (click header to expand/collapse section)
@@ -1458,7 +1958,7 @@ First, the full set of YAML config entries:
 ```yaml
 sensor:
   - platform: pace_bms
-    pace_bms_id: pace_bms_at_address_1
+    pace_bms_id: master_pace_bms_at_address_1
 
     # specific raw status values that you probably don't need, but the values / bit flags are documented anyway
     # you can probably just use the 6 text sensor equivalents which encompass all of these values and are suitable for display
@@ -1555,13 +2055,13 @@ All contain a scalar value.  They indicate a warning but not a fault or error (y
 **Important:** * The SEPLOS variant does not differentiate between charge and discharge current warnings, these two fields will have an identical value.
 
 ```C++
-	enum StatusInformation_WarningValues
-	{
-		WV_Normal = 0,
-		WV_BelowLowerLimitValue = 1,
-		WV_AboveUpperLimitValue = 2,
-		WV_OtherFaultValue = 0xF0,
-	};
+  enum StatusInformation_WarningValues
+  {
+    WV_Normal = 0,
+    WV_BelowLowerLimitValue = 1,
+    WV_AboveUpperLimitValue = 2,
+    WV_OtherFaultValue = 0xF0,
+  };
 ```
 
 The entry:
@@ -1575,17 +2075,17 @@ The entry:
 Contains bitflags.  These flags indicate the current system status of the BMS.  Possible values:
 
 ```C++
-		enum StatusInformation_SystemStatus
-		{
-			SS_ReservedSystemStatusBit8 = (1 << 7),
-			SS_ReservedSystemStatusBit7 = (1 << 6),
-			SS_PowerOff = (1 << 5),
-			SS_Standby = (1 << 4),
-			SS_ReservedSystemStatusBit4 = (1 << 3),
-			SS_FloatingCharge = (1 << 2),
-			SS_Charging = (1 << 1),
-			SS_Discharging = (1 << 0),
-		};
+    enum StatusInformation_SystemStatus
+    {
+      SS_ReservedSystemStatusBit8 = (1 << 7),
+      SS_ReservedSystemStatusBit7 = (1 << 6),
+      SS_PowerOff = (1 << 5),
+      SS_Standby = (1 << 4),
+      SS_ReservedSystemStatusBit4 = (1 << 3),
+      SS_FloatingCharge = (1 << 2),
+      SS_Charging = (1 << 1),
+      SS_Discharging = (1 << 0),
+    };
 ```
 
 The entry:
@@ -1594,17 +2094,17 @@ The entry:
 Contains bitflags.  These flags indicate the current configuration of the BMS.  Possible values:
 
 ```C++
-		enum StatusInformation_PowerStatus
-		{
-			PS_ReservedPowerStatusBit8 = (1 << 7),
-			PS_ReservedPowerStatusBit7 = (1 << 6),
-			PS_ReservedPowerStatusBit6 = (1 << 5),
-			PS_ReservedPowerStatusBit5 = (1 << 4),
-			PS_HeatingSwitchStatus = (1 << 3),
-			PS_CurrentLimitSwitchStatus = (1 << 2),
-			PS_ChargeSwitchStatus = (1 << 1),
-			PS_DischargeSwitchStatus = (1 << 0),
-		};
+    enum StatusInformation_PowerStatus
+    {
+      PS_ReservedPowerStatusBit8 = (1 << 7),
+      PS_ReservedPowerStatusBit7 = (1 << 6),
+      PS_ReservedPowerStatusBit6 = (1 << 5),
+      PS_ReservedPowerStatusBit5 = (1 << 4),
+      PS_HeatingSwitchStatus = (1 << 3),
+      PS_CurrentLimitSwitchStatus = (1 << 2),
+      PS_ChargeSwitchStatus = (1 << 1),
+      PS_DischargeSwitchStatus = (1 << 0),
+    };
 ```
 
 The entry:
@@ -1618,18 +2118,18 @@ The entry:
 Contains bitflags.  These flags indicate faults of the BMS.  Possible values:
 
 ```C++
-		enum StatusInformation_Warning1
-		{
-			// pretty sure these three mean MOSFET when they say "Switch" in the doc...
-			W1_CurrentLimitSwitchFailure = (1 << 7), // fault
-			W1_DischaringSwitchFailure = (1 << 6), // fault
-			W1_ChargingSwitchFailure = (1 << 5), // fault
-			W1_CellVoltageDifferenceSensingFailure = (1 << 4), // fault
-			W1_PowerSwitchFailure = (1 << 3), // fault
-			W1_CurrentSensingFailure = (1 << 2), // fault
-			W1_TemperatureSensingFailure = (1 << 1), // fault
-			W1_VoltageSensingFailure = (1 << 0), // fault
-		};
+    enum StatusInformation_Warning1
+    {
+      // pretty sure these three mean MOSFET when they say "Switch" in the doc...
+      W1_CurrentLimitSwitchFailure = (1 << 7), // fault
+      W1_DischaringSwitchFailure = (1 << 6), // fault
+      W1_ChargingSwitchFailure = (1 << 5), // fault
+      W1_CellVoltageDifferenceSensingFailure = (1 << 4), // fault
+      W1_PowerSwitchFailure = (1 << 3), // fault
+      W1_CurrentSensingFailure = (1 << 2), // fault
+      W1_TemperatureSensingFailure = (1 << 1), // fault
+      W1_VoltageSensingFailure = (1 << 0), // fault
+    };
 ```
 
 The entry:
@@ -1638,17 +2138,17 @@ The entry:
 Contains bitflags.  These flags indicate mixed status of the BMS.  Possible values:
 
 ```C++
-		enum StatusInformation_Warning2
-		{
-			W2_PackLowVoltageProtection = (1 << 7), // protection 
-			W2_PackLowVoltageWarning = (1 << 6), // warning 
-			W2_PackOverVoltageProtection = (1 << 5), // protection 
-			W2_PackOverVoltageWarning = (1 << 4), // warning 
-			W2_CellLowVoltageProtection = (1 << 3), // protection 
-			W2_CellLowVoltageWarning = (1 << 2), // warning 
-			W2_CellOverVoltageProtection = (1 << 1), // protection 
-			W2_CellOverVoltageWarning = (1 << 0), // warning 
-		};
+    enum StatusInformation_Warning2
+    {
+      W2_PackLowVoltageProtection = (1 << 7), // protection 
+      W2_PackLowVoltageWarning = (1 << 6), // warning 
+      W2_PackOverVoltageProtection = (1 << 5), // protection 
+      W2_PackOverVoltageWarning = (1 << 4), // warning 
+      W2_CellLowVoltageProtection = (1 << 3), // protection 
+      W2_CellLowVoltageWarning = (1 << 2), // warning 
+      W2_CellOverVoltageProtection = (1 << 1), // protection 
+      W2_CellOverVoltageWarning = (1 << 0), // warning 
+    };
 ```
 
 The entry:
@@ -1657,17 +2157,17 @@ The entry:
 Contains bitflags.  These flags indicate mixed status of the BMS.  Possible values:
 
 ```C++
-		enum StatusInformation_Warning3
-		{
-			W3_DischargingLowTemperatureProtection = (1 << 7), // protection 
-			W3_DischargingLowTemperatureWarning = (1 << 6), // warning
-			W3_DischargingHighTemperatureProtection = (1 << 5), // protection 
-			W3_DischargingHighTemperatureWarning = (1 << 4), // warning
-			W3_ChargingLowTemperatureProtection = (1 << 3), // protection 
-			W3_ChargingLowTemperatureWarning = (1 << 2), // warning
-			W3_ChargingHighTemperatureProtection = (1 << 1), // protection 
-			W3_ChargingHighTemperatureWarning = (1 << 0), // warning
-		};
+    enum StatusInformation_Warning3
+    {
+      W3_DischargingLowTemperatureProtection = (1 << 7), // protection 
+      W3_DischargingLowTemperatureWarning = (1 << 6), // warning
+      W3_DischargingHighTemperatureProtection = (1 << 5), // protection 
+      W3_DischargingHighTemperatureWarning = (1 << 4), // warning
+      W3_ChargingLowTemperatureProtection = (1 << 3), // protection 
+      W3_ChargingLowTemperatureWarning = (1 << 2), // warning
+      W3_ChargingHighTemperatureProtection = (1 << 1), // protection 
+      W3_ChargingHighTemperatureWarning = (1 << 0), // warning
+    };
 ```
 
 The entry:
@@ -1676,17 +2176,17 @@ The entry:
 Contains bitflags.  These flags indicate mixed status of the BMS.  Possible values:
 
 ```C++
-		enum StatusInformation_Warning4
-		{
-			W4_ReservedWarning4Bit8 = (1 << 7), // warning
-			W4_Heating = (1 << 6), // system
-			W4_ComponentHighTemperatureProtection = (1 << 5), // protection
-			W4_ComponentHighTemperatureWarning = (1 << 4), // warning
-			W4_AmbientLowTemperatureProtection  = (1 << 3), // protection
-			W4_AmbientLowTemperatureWarning = (1 << 2), // warning
-			W4_AmbientHighTemperatureProtection = (1 << 1), // protection
-			W4_AmbientHighTemperatureWarning = (1 << 0), // warning
-		};
+    enum StatusInformation_Warning4
+    {
+      W4_ReservedWarning4Bit8 = (1 << 7), // warning
+      W4_Heating = (1 << 6), // system
+      W4_ComponentHighTemperatureProtection = (1 << 5), // protection
+      W4_ComponentHighTemperatureWarning = (1 << 4), // warning
+      W4_AmbientLowTemperatureProtection  = (1 << 3), // protection
+      W4_AmbientLowTemperatureWarning = (1 << 2), // warning
+      W4_AmbientHighTemperatureProtection = (1 << 1), // protection
+      W4_AmbientHighTemperatureWarning = (1 << 0), // warning
+    };
 ```
 
 The entry:
@@ -1695,17 +2195,17 @@ The entry:
 Contains bitflags.  These flags indicate mixed status of the BMS.  Possible values:
 
 ```C++
-		enum StatusInformation_Warning5
-		{
-			W5_OutputShortCircuitLock = (1 << 7), // fault 
-			W5_TransientOverCurrentLock = (1 << 6), // fault
-			W5_OutputShortCircuitProtection = (1 << 5), // protection 
-			W5_TansientOverCurrentProtection = (1 << 4), // protection 
-			W5_DischargeOverCurrentProtection = (1 << 3), // protection 
-			W5_DischargeOverCurrentWarning = (1 << 2), // warning
-			W5_ChargeOverCurrentProtection = (1 << 1), // protection 
-			W5_ChargeOverCurrentWarning = (1 << 0), // warning
-		};
+    enum StatusInformation_Warning5
+    {
+      W5_OutputShortCircuitLock = (1 << 7), // fault 
+      W5_TransientOverCurrentLock = (1 << 6), // fault
+      W5_OutputShortCircuitProtection = (1 << 5), // protection 
+      W5_TansientOverCurrentProtection = (1 << 4), // protection 
+      W5_DischargeOverCurrentProtection = (1 << 3), // protection 
+      W5_DischargeOverCurrentWarning = (1 << 2), // warning
+      W5_ChargeOverCurrentProtection = (1 << 1), // protection 
+      W5_ChargeOverCurrentWarning = (1 << 0), // warning
+    };
 ```
 
 The entry:
@@ -1714,17 +2214,17 @@ The entry:
 Contains bitflags.  These flags indicate mixed status of the BMS.  Possible values:
 
 ```C++
-		enum StatusInformation_Warning6
-		{
-			W6_InternalWarning6Bit8 = (1 << 7), // warning
-			W6_OutputConnectionFailure = (1 << 6), // fault
-			W6_OutputReverseConnectionProtection = (1 << 5), // protection
-			W6_CellLowVoltageChargingForbidden = (1 << 4), // fault
-			W6_RemaingCapacityProtection = (1 << 3), // protection
-			W6_RemaingCapacityWarning = (1 << 2), // warning
-			W6_IntermittentPowerSupplementWaiting = (1 << 1), // warning
-			W6_ChargingHighVoltageProtection = (1 << 0), // protection
-		};
+    enum StatusInformation_Warning6
+    {
+      W6_InternalWarning6Bit8 = (1 << 7), // warning
+      W6_OutputConnectionFailure = (1 << 6), // fault
+      W6_OutputReverseConnectionProtection = (1 << 5), // protection
+      W6_CellLowVoltageChargingForbidden = (1 << 4), // fault
+      W6_RemaingCapacityProtection = (1 << 3), // protection
+      W6_RemaingCapacityWarning = (1 << 2), // warning
+      W6_IntermittentPowerSupplementWaiting = (1 << 1), // warning
+      W6_ChargingHighVoltageProtection = (1 << 0), // protection
+    };
 ```
 
 The entry:
@@ -1733,17 +2233,17 @@ The entry:
 Contains bitflags.  These flags indicate warning status of the BMS.  Possible values:
 
 ```C++
-		enum StatusInformation_Warning7
-		{
-			W7_Warning7InternalBit8 = (1 << 7),
-			W7_Warning7InternalBit7 = (1 << 6),
-			W7_ManualChargingWait = (1 << 5),
-			W7_AutoChargingWait = (1 << 4),
-			W7_Warning7InternalBit4 = (1 << 3),
-			W7_Warning7InternalBit3 = (1 << 2),
-			W7_Warning7InternalBit2 = (1 << 1),
-			W7_Warning7InternalBit1 = (1 << 0),
-		};
+    enum StatusInformation_Warning7
+    {
+      W7_Warning7InternalBit8 = (1 << 7),
+      W7_Warning7InternalBit7 = (1 << 6),
+      W7_ManualChargingWait = (1 << 5),
+      W7_AutoChargingWait = (1 << 4),
+      W7_Warning7InternalBit4 = (1 << 3),
+      W7_Warning7InternalBit3 = (1 << 2),
+      W7_Warning7InternalBit2 = (1 << 1),
+      W7_Warning7InternalBit1 = (1 << 0),
+    };
 ```
 
 The entry:
@@ -1752,17 +2252,17 @@ The entry:
 Contains bitflags.  These flags indicate fault status of the BMS.  Possible values:
 
 ```C++
-		enum StatusInformation_Warning8
-		{
-			W8_Warning8InternalBit8 = (1 << 7),
-			W8_Warning8InternalBit7 = (1 << 6),
-			W8_Warning8InternalBit6 = (1 << 5),
-			W8_NoNullPointCalibration = (1 << 4),
-			W8_NoCurrentCalibration = (1 << 3),
-			W8_NoVoltageCalibration = (1 << 2),
-			W8_RTCFailure = (1 << 1),
-			W8_EEPStorageFailure = (1 << 0),
-		};
+    enum StatusInformation_Warning8
+    {
+      W8_Warning8InternalBit8 = (1 << 7),
+      W8_Warning8InternalBit7 = (1 << 6),
+      W8_Warning8InternalBit6 = (1 << 5),
+      W8_NoNullPointCalibration = (1 << 4),
+      W8_NoCurrentCalibration = (1 << 3),
+      W8_NoVoltageCalibration = (1 << 2),
+      W8_RTCFailure = (1 << 1),
+      W8_EEPStorageFailure = (1 << 0),
+    };
 ```
 </details>
 (click header to expand/collapse section)
@@ -1777,7 +2277,7 @@ First, the full set of YAML config entries:
 ```yaml
 sensor:
   - platform: pace_bms
-    pace_bms_id: pace_bms_at_address_1
+    pace_bms_id: master_pace_bms_at_address_1
 
     # specific raw status values that you probably don't need, but the values / bit flags are documented anyway
     # you can probably just use the 6 text sensor equivalents which encompass all of these values and are suitable for display
@@ -1864,13 +2364,13 @@ All contain a scalar value.  They indicate a warning but not a fault or error (y
 **Important:** * The EG4 variant does not differentiate between charge and discharge current warnings, these two fields will have an identical value.
 
 ```C++
-	enum StatusInformation_WarningValues
-	{
-		WV_Normal = 0,
-		WV_BelowLowerLimitValue = 1,
-		WV_AboveUpperLimitValue = 2,
-		WV_OtherFaultValue = 0xF0,
-	};
+  enum StatusInformation_WarningValues
+  {
+    WV_Normal = 0,
+    WV_BelowLowerLimitValue = 1,
+    WV_AboveUpperLimitValue = 2,
+    WV_OtherFaultValue = 0xF0,
+  };
 ```
 
 The entry:
@@ -1879,17 +2379,17 @@ The entry:
 Contains bitflags.  These flags contain mixed status information on current status of the BMS.  Possible values:
 
 ```C++
-		enum StatusInformation_BalanceEvent
-		{
-			BE_BalanceEventReservedBit8 = (1 << 7), // warning
-			BE_DischargeMosFaultAlarm = (1 << 6), // fault
-			BE_ChargeMosFaultAlarm = (1 << 5), // fault
-			BE_CellVoltageDifferenceAlarm = (1 << 4), // warning
-			BE_BalanceEventReservedBit4 = (1 << 3), // warning
-			BE_BalanceEventReservedBit3 = (1 << 2), // warning
-			BE_BalanceEventReservedBit2 = (1 << 1), // warning
-			BE_BalanceEventBalancingActive = (1 << 0), // warning
-		};
+    enum StatusInformation_BalanceEvent
+    {
+      BE_BalanceEventReservedBit8 = (1 << 7), // warning
+      BE_DischargeMosFaultAlarm = (1 << 6), // fault
+      BE_ChargeMosFaultAlarm = (1 << 5), // fault
+      BE_CellVoltageDifferenceAlarm = (1 << 4), // warning
+      BE_BalanceEventReservedBit4 = (1 << 3), // warning
+      BE_BalanceEventReservedBit3 = (1 << 2), // warning
+      BE_BalanceEventReservedBit2 = (1 << 1), // warning
+      BE_BalanceEventBalancingActive = (1 << 0), // warning
+    };
 ```
 
 The entry:
@@ -1898,17 +2398,17 @@ The entry:
 Contains bitflags.  These flags contain mixed status information on current status of the BMS.  Possible values:
 
 ```C++
-		enum StatusInformation_VoltageEvent
-		{
-			VE_PackUnderVoltageProtect = (1 << 7), // protection
-			VE_PackUnderVoltageAlarm = (1 << 6), // warning
-			VE_PackOverVoltageProtect = (1 << 5), // protection
-			VE_PackOverVoltageAlarm = (1 << 4), // warning
-			VE_CellUnderVoltageProtect = (1 << 3), // protection
-			VE_CellUnderVoltageAlarm = (1 << 2), // warning
-			VE_CellOverVoltageProtect = (1 << 1), // protection
-			VE_CellOverVoltageAlarm = (1 << 0), // warning
-		};
+    enum StatusInformation_VoltageEvent
+    {
+      VE_PackUnderVoltageProtect = (1 << 7), // protection
+      VE_PackUnderVoltageAlarm = (1 << 6), // warning
+      VE_PackOverVoltageProtect = (1 << 5), // protection
+      VE_PackOverVoltageAlarm = (1 << 4), // warning
+      VE_CellUnderVoltageProtect = (1 << 3), // protection
+      VE_CellUnderVoltageAlarm = (1 << 2), // warning
+      VE_CellOverVoltageProtect = (1 << 1), // protection
+      VE_CellOverVoltageAlarm = (1 << 0), // warning
+    };
 ```
 
 The entry:
@@ -1917,25 +2417,25 @@ The entry:
 Contains bitflags.  These flags contain mixed status information on current status of the BMS.  Possible values:
 
 ```C++
-		enum StatusInformation_TemperatureEvent
-		{
-			TE_TemperatureEventReservedBit16 = (1 << 15), // warning
-			TE_TemperatureEventReservedBit15 = (1 << 14), // warning
-			TE_FireAlarm = (1 << 13), // fault
-			TE_MosfetHighTemperatureProtect = (1 << 12), // protection
-			TE_EnvironmentLowTemperatureProtect = (1 << 11), // protection
-			TE_EnvironmentLowTemperatureAlarm = (1 << 10), // warning
-			TE_EnvironmentHighTemperatureProtect = (1 << 9), // protection
-			TE_EnvironmentHighTemperatureAlarm = (1 << 8), // warning
-			TE_DischargeLowTemperatureProtect = (1 << 7), // protection
-			TE_DischargeLowTemperatureAlarm = (1 << 6), // warning
-			TE_DischargeHighTemperatureProtect = (1 << 5), // protection
-			TE_DischargeHighTemperatureAlarm = (1 << 4), // warning
-			TE_ChargeLowTemperatureProtect = (1 << 3), // protection
-			TE_ChargeLowTemperatureAlarm = (1 << 2), // warning
-			TE_ChargeHighTemperatureProtect = (1 << 1), // protection
-			TE_ChargeHighTemperatureAlarm = (1 << 0), // warning
-		};
+    enum StatusInformation_TemperatureEvent
+    {
+      TE_TemperatureEventReservedBit16 = (1 << 15), // warning
+      TE_TemperatureEventReservedBit15 = (1 << 14), // warning
+      TE_FireAlarm = (1 << 13), // fault
+      TE_MosfetHighTemperatureProtect = (1 << 12), // protection
+      TE_EnvironmentLowTemperatureProtect = (1 << 11), // protection
+      TE_EnvironmentLowTemperatureAlarm = (1 << 10), // warning
+      TE_EnvironmentHighTemperatureProtect = (1 << 9), // protection
+      TE_EnvironmentHighTemperatureAlarm = (1 << 8), // warning
+      TE_DischargeLowTemperatureProtect = (1 << 7), // protection
+      TE_DischargeLowTemperatureAlarm = (1 << 6), // warning
+      TE_DischargeHighTemperatureProtect = (1 << 5), // protection
+      TE_DischargeHighTemperatureAlarm = (1 << 4), // warning
+      TE_ChargeLowTemperatureProtect = (1 << 3), // protection
+      TE_ChargeLowTemperatureAlarm = (1 << 2), // warning
+      TE_ChargeHighTemperatureProtect = (1 << 1), // protection
+      TE_ChargeHighTemperatureAlarm = (1 << 0), // warning
+    };
 ```
 
 The entry:
@@ -1944,17 +2444,17 @@ The entry:
 Contains bitflags.  These flags contain mixed status information on current status of the BMS.  Possible values:
 
 ```C++
-		enum StatusInformation_CurrentEvent
-		{
-			CE_OutputShortCircuitLockout = (1 << 7), // fault
-			CE_DischargeLevel2OverCurrentLockout = (1 << 6), // fault
-			CE_OutputShortCircuitProtect = (1 << 5), // protection
-			CE_DischargeLevel2OverCurrentProtect = (1 << 4), // protection
-			CE_DischargeOverCurrentProtect = (1 << 3), // protection
-			CE_DischargeOverCurrentAlarm = (1 << 2), // warning
-			CE_ChargeOverCurrentProtect = (1 << 1), // protection
-			CE_ChargeOverCurrentAlarm = (1 << 0), // warning
-		};
+    enum StatusInformation_CurrentEvent
+    {
+      CE_OutputShortCircuitLockout = (1 << 7), // fault
+      CE_DischargeLevel2OverCurrentLockout = (1 << 6), // fault
+      CE_OutputShortCircuitProtect = (1 << 5), // protection
+      CE_DischargeLevel2OverCurrentProtect = (1 << 4), // protection
+      CE_DischargeOverCurrentProtect = (1 << 3), // protection
+      CE_DischargeOverCurrentAlarm = (1 << 2), // warning
+      CE_ChargeOverCurrentProtect = (1 << 1), // protection
+      CE_ChargeOverCurrentAlarm = (1 << 0), // warning
+    };
 ```
 
 The entry:
@@ -1963,17 +2463,17 @@ The entry:
 Contains bitflags.  These flags contain mixed status information on current status of the BMS.  Possible values:
 
 ```C++
-		enum StatusInformation_RemainingCapacity
-		{
-			RC_RemainingCapacityReservedBit8 = (1 << 7), // warning
-			RC_RemainingCapacityReservedBit7 = (1 << 6), // warning
-			RC_RemainingCapacityReservedBit6 = (1 << 5), // warning
-			RC_RemainingCapacityReservedBit5 = (1 << 4), // warning
-			RC_RemainingCapacityReservedBit4 = (1 << 3), // warning
-			RC_RemainingCapacityReservedBit3 = (1 << 2), // warning
-			RC_RemainingCapacityReservedBit2 = (1 << 1), // warning
-			RC_StateOfChargeLow = (1 << 0), // warning
-		};
+    enum StatusInformation_RemainingCapacity
+    {
+      RC_RemainingCapacityReservedBit8 = (1 << 7), // warning
+      RC_RemainingCapacityReservedBit7 = (1 << 6), // warning
+      RC_RemainingCapacityReservedBit6 = (1 << 5), // warning
+      RC_RemainingCapacityReservedBit5 = (1 << 4), // warning
+      RC_RemainingCapacityReservedBit4 = (1 << 3), // warning
+      RC_RemainingCapacityReservedBit3 = (1 << 2), // warning
+      RC_RemainingCapacityReservedBit2 = (1 << 1), // warning
+      RC_StateOfChargeLow = (1 << 0), // warning
+    };
 ```
 
 The entry:
@@ -1982,17 +2482,17 @@ The entry:
 Contains bitflags.  These flags contain mixed status information on current status of the BMS.  Possible values:
 
 ```C++
-		enum StatusInformation_FetStatus
-		{
-			FS_FetStatusReservedBit8 = (1 << 7), // configuration
-			FS_FetStatusReservedBit7 = (1 << 6), // configuration
-			FS_FetStatusReservedBit6 = (1 << 5), // configuration
-			FS_FetStatusReservedBit5 = (1 << 4), // configuration
-			FS_HeaterOn = (1 << 3), // configuration
-			FS_ChargeCurrentLimiterOn = (1 << 2), // configuration
-			FS_ChargeMosfetOn = (1 << 1), // configuration
-			FS_DischargeMosfetOn = (1 << 0), // configuration
-		};
+    enum StatusInformation_FetStatus
+    {
+      FS_FetStatusReservedBit8 = (1 << 7), // configuration
+      FS_FetStatusReservedBit7 = (1 << 6), // configuration
+      FS_FetStatusReservedBit6 = (1 << 5), // configuration
+      FS_FetStatusReservedBit5 = (1 << 4), // configuration
+      FS_HeaterOn = (1 << 3), // configuration
+      FS_ChargeCurrentLimiterOn = (1 << 2), // configuration
+      FS_ChargeMosfetOn = (1 << 1), // configuration
+      FS_DischargeMosfetOn = (1 << 0), // configuration
+    };
 ```
 
 The entry:
@@ -2001,17 +2501,17 @@ The entry:
 Contains bitflags.  These flags contain mixed status information on current status of the BMS.  Possible values:
 
 ```C++
-		enum StatusInformation_SystemStatus
-		{
-			SS_SystemStatusReservedBit8 = (1 << 7), // system
-			SS_SystemStatusReservedBit7 = (1 << 6), // system
-			SS_SystemStatusReservedBit6 = (1 << 5), // system
-			SS_SystemStatusReservedBit5 = (1 << 4), // system
-			SS_Standby = (1 << 3), // system
-			SS_SystemStatusReservedBit3 = (1 << 2), // system
-			SS_Charging = (1 << 1), // system
-			SS_Discharging = (1 << 0), // system
-		};
+    enum StatusInformation_SystemStatus
+    {
+      SS_SystemStatusReservedBit8 = (1 << 7), // system
+      SS_SystemStatusReservedBit7 = (1 << 6), // system
+      SS_SystemStatusReservedBit6 = (1 << 5), // system
+      SS_SystemStatusReservedBit5 = (1 << 4), // system
+      SS_Standby = (1 << 3), // system
+      SS_SystemStatusReservedBit3 = (1 << 2), // system
+      SS_Charging = (1 << 1), // system
+      SS_Discharging = (1 << 0), // system
+    };
 ```
 </details>
 (click header to expand/collapse section)
@@ -2021,20 +2521,22 @@ Contains bitflags.  These flags contain mixed status information on current stat
 
 Did you read this entire document?  If not, please do that first to make sure you understand how everything works.  You might be able to figure it out on your own!
 
-If you still have an issue, or are seeing some "strange data" or log output, you can create an issue report. 
+If you still have an issue, or are seeing some "strange data" or log output, you can create an [issue report](https://github.com/nkinnan/esphome-pace-bms/issues). 
 
 # Miscellaneous Notes
  
 - My personal preference is for the [C# Style Guidelines](https://learn.microsoft.com/en-us/dotnet/standard/design-guidelines/) but the idea is to get this into ESPHome and [their guidelines](https://esphome.io/guides/contributing.html#codebase-standards) are different.  It's currently a bit of a mishmash until I can refactor over to ESPHome's style completely.
 
-- Huge shout-out to https://github.com/syssi/esphome-seplos-bms who implemented an initial basic decode letting me know this was possible, and also compiled some documentation which was immensely useful.  Without which I might never have gotten started on, or been motivated to finish, this more complete reverse-engineering and implementation of the protocol.
+- Huge shout-out to [Syssi](https://github.com/syssi/esphome-seplos-bms) who implemented an initial basic decode letting me know this was possible, and also compiled some documentation which was immensely useful.  Without their work, I might never have gotten started on, or been motivated to finish, this more complete reverse-engineering and implementation of the protocol.
+
+- Huge shout-out to Rogan whos help was invaluable in adding multi-pack support. Gathering uart logs and packet captures for me, testing out changes, and most importantly: I don't currently have a multi-pack setup (at least not all of the same brand/type) - he was able to give me remote access to his system which enabled me to test and verify this new feature.
 
 # Helping Out
 
-- I would like to make additions to the [known supported battery packs](#What-Battery-Packs-are-Supported) section.  If you have a pack that works, please share!
+- I would like to make additions to the [known supported battery packs](#What-Battery-Packs-are-Supported) section.  If you have a pack that works, please share by [filing an issue](https://github.com/nkinnan/esphome-pace-bms/issues)!
 
-- If you can locate any new [documentation](https://github.com/nkinnan/esphome-pace-bms/tree/main/protocol_documentation) on the protocol, particularly for version 20 variants, or if you find a variation on version 25 (I'm not aware of any at this time), please let me know!
+- If you can locate any new [documentation](https://github.com/nkinnan/esphome-pace-bms/tree/main/protocol_documentation) on the protocol, particularly for version 20 variants, or if you find a variation on version 25 (I'm not aware of any at this time), please [let me know](https://github.com/nkinnan/esphome-pace-bms/issues)! 
 
-- Want to contribute more directly? Found a bug? Submit a PR! Could be helpful to discuss it with me first if it's non-trivial design change, or adding a new variant. 
+- Want to contribute more directly? Found a bug? Submit a PR! Could be helpful to discuss it with me first if it's non-trivial design change, or adding a new variant. I'm on discord as nkinnan_63071 or you can [file an issue](https://github.com/nkinnan/esphome-pace-bms/issues) to get in touch if needed.
 
 - And of course, if you appreciate the work that went into this, you can always [buy me a coffee](https://www.buymeacoffee.com/nkinnan) :)

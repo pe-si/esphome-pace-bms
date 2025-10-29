@@ -6,11 +6,8 @@ substitutions:
 esphome:
   name: ${name}
   friendly_name: ${friendly_name}
-  min_version: 2024.6.0
+  min_version: 2025.10.0
   name_add_mac_suffix: false
-  project:
-    name: esphome.web
-    version: dev
 
 esp32:
   board: esp32dev
@@ -290,11 +287,11 @@ text_sensor:
       name: "Balancing Status"
 
 datetime:
- - platform: pace_bms
-   pace_bms_id: pace_bms_at_address_1
+  - platform: pace_bms
+    pace_bms_id: pace_bms_at_address_1
 
-   system_date_and_time:
-     name: "System Date and Time"
+    system_date_and_time:
+      name: "System Date and Time"
 
 button:
   - platform: pace_bms
