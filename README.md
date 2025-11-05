@@ -532,24 +532,6 @@ Many of these settings are only applicable to a `type=MASTER` (or with type omit
 
 Next, lets go over making things available to the web_server dashboard, homeassistant, or mqtt.  This is going to differ slightly depending on what data you want to read back from the BMS.  I will provide a complete example which you can pare down to only what you want to see.
 
-> [!WARNING]
-> If you're using [sub-devices](https://esphome.io/components/esphome/#sub-devices) in a multi-pack setup, and also things like `!include` that cause your yaml to be broken up into multiple files, then the custom yaml processing allowing you to add `device_id` under `pace_bms` alone, and have that automatically "flow down" to all sensors may not work.  However, you can still avoid the need to decorate each individual sensor with `device_id` by simply adding it at the platform level instead:
-> ```yaml
-> sensor:
->  - platform: pace_bms
->    pace_bms_id: master_pace_bms_at_address_1
->    device_id: device_group_master_bms_address_1
->
->    <...sensors for BMS 1...>
->
->   - platform: pace_bms
->     pace_bms_id: slave_pace_bms_at_address_2
->     device_id: device_group_slave_bms_address_2
->
->    <...sensors for BMS 2...>
-> ```
-> (and so on)
-
 ### All read-only values
 ```yaml
 sensor:
@@ -991,6 +973,24 @@ pace_bms:
 ```
 
 Note that normally you would need to decorate each and every individual sensor, switch, button, and so forth, with `device_id:` in order to achieve this, but special processing of the device yaml has been implemented in this component.  This special processing allows you to specify the `device_id:` only at the root `pace_bms` node.  The device_id will "flow down" to each sensor/control platform entry, and then to all the individual sensors and controls.  The only catch is that you must specify the `pace_bms` section in your device yaml before any of those other components like sensor, switch, text_sensor, etc. in order for this "magic" to happen.
+
+> [!WARNING]
+> If you're using [sub-devices](https://esphome.io/components/esphome/#sub-devices) in a multi-pack setup, and also things like `!include` that cause your yaml to be broken up into multiple files, then the custom yaml processing allowing you to add `device_id` under `pace_bms` alone, and have that automatically "flow down" to all sensors may not work.  However, you can still avoid the need to decorate each individual sensor with `device_id` by simply adding it at the platform level instead:
+> ```yaml
+> sensor:
+>  - platform: pace_bms
+>    pace_bms_id: master_pace_bms_at_address_1
+>    device_id: device_group_master_bms_address_1
+>
+>    <...sensors for BMS 1...>
+>
+>   - platform: pace_bms
+>     pace_bms_id: slave_pace_bms_at_address_2
+>     device_id: device_group_slave_bms_address_2
+>
+>    <...sensors for BMS 2...>
+> ```
+> (and so on)
 
 Finally, just copy/paste all the relevant sensors etc that you'd like to have exposed for each of the slave BMSes.  Point the new platform section to the slave BMS id instead of the master BMS id.
 
