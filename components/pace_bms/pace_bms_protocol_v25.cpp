@@ -114,7 +114,7 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 	}
 
 	// first thing we need to do is look ahead and check the AnalogInformation UserDefinedValue, which tells us how to interpret the rest of the payload
-	uint16_t snoopOffset = 13 + 36;
+	uint16_t snoopOffset = 13 + 70;
 	uint8_t lookAhead_TemperatureCount = ReadHexEncodedByte(response, snoopOffset, quietMode);
 	uint8_t lookAhead_AnalogInformationUserDefinedValue = -1;
 	if(lookAhead_TemperatureCount == 8)
@@ -203,7 +203,7 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 		analogInformation.cellCount = ReadHexEncodedByte(response, byteOffset, quietMode);
 		if (analogInformation.cellCount > MAX_CELL_COUNT)
 		{
-			logWarning("Response contains more cell voltage readings than are supported, results will be truncated");
+			logWarning("Response contains more cell voltage readings than are supported (" + std::to_string(analogInformation.cellCount) + "), results will be truncated");
 		}
 		int sanityCheck_totalVoltage = 0;
 		for (int i = 0; i < analogInformation.cellCount; i++)
@@ -230,11 +230,11 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 			// Eenovance/Sunsynk have 8 temperature readings, this is "expected" so we can log info instead of warning
 			if(currentProtocolVariant->analogInformationUserDefinedValue == 4)
 			{
-				logInfo("Response contains more temperature readings than are supported, but that is expected for this protocol variant; the 7th and 8th readings will be ignored");
+				logInfo("Response contains more temperature readings than are supported (" + std::to_string(analogInformation.temperatureCount) + "), but that is expected for this protocol variant; the 7th and 8th readings will be ignored");
 			}
 			else
 			{
-				logWarning("Response contains more temperature readings than are supported, results will be truncated");
+				logWarning("Response contains more temperature readings than are supported (" + std::to_string(analogInformation.temperatureCount) + "), results will be truncated");
 			}
 		}
 		for (int i = 0; i < analogInformation.temperatureCount; i++)
