@@ -87,8 +87,10 @@ protected:
 	struct Protocol25Variant
 	{
 		int16_t analogInformationUserDefinedValue;
-		int16_t analogInformationExtraBytes;
-		int16_t statusInformationExtraBytes;
+		int16_t analogInformationTrailingBytes;
+		int16_t statusInformationTrailingBytes;
+		int16_t analogInformationTotalExtraBytes;
+		int16_t statusInformationTotalExtraBytes;
 	};
 
 	// known variants of the 0x25 protocol, identified by the "User Defined Value" field in the Analog Information response
@@ -98,21 +100,27 @@ protected:
 		// default / standard protocol
 		{
 			3,  // analogInformationUserDefinedValue
-			0,  // analogInformationExtraBytes
-			0   // statusInformationExtraBytes
+			0,  // analogInformationTrailingBytes
+			0,   // statusInformationTrailingBytes
+			0,  // analogInformationTotalExtraBytes
+			0,  // statusInformationTotalExtraBytes
 		},
 		// reported by f3nix that a BMS variant used in some wall-mount packs is 0x25 compatible but contains some extra
 		// garbage in the response (he partly decoded it but it was not of interest)
 		{
 			9,  // analogInformationUserDefinedValue
-			28, // analogInformationExtraBytes
-			2   // statusInformationExtraBytes
+			28, // analogInformationTrailingBytes
+			2,   // statusInformationTrailingBytes
+			28, // analogInformationTotalExtraBytes
+			2,  // statusInformationTotalExtraBytes
 		},
 		// reported by RoganDawes that Greenrich U-P5000 packs have an extra 2 bytes at the end of both analog and status responses containing unknown information
 		{
 			2,  // analogInformationUserDefinedValue
-			2,  // analogInformationExtraBytes
-			2   // statusInformationExtraBytes
+			2,  // analogInformationTrailingBytes
+			2,  // analogInformationUserDefinedValue
+			2,  // analogInformationTotalExtraBytes
+			2,  // statusInformationTotalExtraBytes
 		},
 		// reported by johnmsole that Eenovance/Sunsynk packs have an 2 extra temperatures (2 * 4 bytes) plus an extra 28 bytes at the end containing unknown 
 		// information for a total of 36 extra bytes in the analog info response
@@ -120,8 +128,10 @@ protected:
 		// and an extra 6 bytes at the end of the status response containing unknown information
 		{
 			4,  // analogInformationUserDefinedValue
-			28, // analogInformationExtraBytes (technically 36 but 8 of those are the extra temperature readings which are handled separately)
-			6   // statusInformationExtraBytes
+			28, // analogInformationTrailingBytes
+			6,  // statusInformationTrailingBytes
+			36, // analogInformationTotalExtraBytes (because this has two extra temperature readings, there's an extra 8 bytes to account for in the multi-pack payload size calculations)
+			6,  // statusInformationTotalExtraBytes
 		},
 	};
 
@@ -183,17 +193,18 @@ public:
 	//        ~25014600D07C0001100CE70CEC0CE70CE80CEA0CEB0CEB0CE80CE60CE80CE60CEA0CEA0CE90CE70CEB060B950B910B940B910BB20BBC0407CE8D08CD022673004F271017E168
 	// Eenovance (rebadged Sunsynk from South Africa) **** NOTE THIS HAS 8 TEMPERATURE READINGS **** All values past that section are shifted right by 8 bytes
 	//        ~25014600909E0001100D160D170D170D170D170D160D170D170D170D170D170D170D170D160D170D16080B520B540B520B510B4E0B480B5C0B78031DD1914679045140000751405600000000000000006414FE0000DC73\r
+	//multi:  ~2501460001D20003100D0F0D1C0D210D0E0D0E0D0D0D0E0D0F0D0D0D0B0D0F0D110D0E0D130D100D18080B8C0B8D0B8C0B8A0B950B8D0BA50BB8FFB9D13850F3045140000E51406400000000000000006414F80000100D060D100D100D110D110D090D110D100D0C0D100D100D100D110D100D070D11080B8E0B8F0B8E0B8A000000000BA30BBBFFCFD11C510F045140008051406300000000000000006400000000100D0F0D100D100D0B0D110D100D100D100D120D0F0D080D0F0D100D100D0F0D10080B8F0B8 <truncated: got 4 out of 5 log lines>
 
 	static const uint8_t exampleReadAnalogInformationRequestV25[];
 	static const uint8_t exampleReadAnalogInformationResponseV25[];
 	static const uint8_t MAX_CELL_COUNT = 16;
-	static const uint8_t MAX_TEMP_COUNT = 6;
+	static const uint8_t MAX_TEMP_COUNT = 8;
 	struct AnalogInformation
 	{
 		uint8_t  cellCount{ 0 };
 		uint16_t cellVoltagesMillivolts[MAX_CELL_COUNT]{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 		uint8_t  temperatureCount{ 0 };
-		int16_t  temperaturesTenthsCelcius[MAX_TEMP_COUNT]{ 0, 0, 0, 0, 0, 0 }; // first 4 are Cell readings, then MOSFET then Environment
+		int16_t  temperaturesTenthsCelcius[MAX_TEMP_COUNT]{ 0, 0, 0, 0, 0, 0, 0, 0 }; // first 4 are Cell readings, then MOSFET then Environment
 		int32_t  currentMilliamps{ 0 };
 		uint16_t totalVoltageMillivolts{ 0 };
 		uint32_t remainingCapacityMilliampHours{ 0 };
@@ -363,7 +374,7 @@ public:
 	{
 		std::string warningText{ "" };
 		uint8_t     warning_value_cell[MAX_CELL_COUNT]{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }; // DecodeWarningValue / enum StatusInformation_WarningValues
-		uint8_t     warning_value_temp[MAX_TEMP_COUNT]{ 0, 0, 0, 0, 0, 0 }; // DecodeWarningValue / enum StatusInformation_WarningValues
+		uint8_t     warning_value_temp[MAX_TEMP_COUNT]{ 0, 0, 0, 0, 0, 0, 0, 0 }; // DecodeWarningValue / enum StatusInformation_WarningValues
 		uint8_t     warning_value_charge_current{ 0 };       // DecodeWarningValue / enum StatusInformation_WarningValues
 		uint8_t     warning_value_total_voltage{ 0 };        // DecodeWarningValue / enum StatusInformation_WarningValues
 		uint8_t     warning_value_discharge_current{ 0 };    // DecodeWarningValue / enum StatusInformation_WarningValues

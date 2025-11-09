@@ -119,8 +119,7 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 	uint8_t lookAhead_TemperatureCount = ReadHexEncodedByte(response, snoopOffset, quietMode);
 	if(lookAhead_TemperatureCount != 6 && lookAhead_TemperatureCount != 8)
 	{
-		logError("lookAhead: AnalogInformation response contains a temperature count of " + std::to_string(lookAhead_TemperatureCount) + " which is not one of the expected values of 6 or 8. Please file an issue report with full logs at VERY_VERBOSE level.");
-		return false;
+		logWarning("lookAhead: AnalogInformation response contains a temperature count of " + std::to_string(lookAhead_TemperatureCount) + " which is not one of the expected values of 6 or 8. This will be ignored, but please file an issue report with full logs at VERY_VERBOSE level.");
 	}
 	// calculate offset to the UserDefinedValue based on the temperature count
 	// the normal temperature count is 6, but Eenovance/Sunsynk have 8 temperature readings so the offset is advanced by an extra 8 bytes, gotta love that vendor lock in!
@@ -171,14 +170,14 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 			error = true;
 		}
 
-		int remainder = (payloadLen - 4 /* initial zero byte plus payload len byte */) % ((118 /* standard analog info payload size */ + currentProtocolVariant->analogInformationExtraBytes));
+		int remainder = (payloadLen - 4 /* initial zero byte plus payload len byte */) % ((118 /* standard analog info payload size */ + currentProtocolVariant->analogInformationTotalExtraBytes));
 		if(remainder != 0)
 		{
 			logError("Response to AnalogInformation broadcast request contains a total payload length that is not a multiple of the expected payload size, remainder " + std::to_string(remainder) + " bytes.");
 			error = true;
 		}
 
-		int calculatedPayloadCount = (payloadLen - 4 /* initial zero byte plus payload len byte */) / ((118 /* standard analog info payload size */ + currentProtocolVariant->analogInformationExtraBytes));
+		int calculatedPayloadCount = (payloadLen - 4 /* initial zero byte plus payload len byte */) / ((118 /* standard analog info payload size */ + currentProtocolVariant->analogInformationTotalExtraBytes));
 		if(calculatedPayloadCount != payloadCount)
 		{
 			logWarning("Response to AnalogInformation broadcast request contains a payload count of " + std::to_string(payloadCount) + " but the total payload length indicates " + std::to_string(calculatedPayloadCount) + " payloads are present; using calculated value");
@@ -229,22 +228,9 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 			logError("AnalogInformation TemperatureCount mismatch between lookahead value and actual value read from response, this is a bug in PACE_BMS. Please file an issue report with full logs at VERY_VERBOSE level.");
 			return false;
 		}
-		if(analogInformation.temperatureCount != 6 && analogInformation.temperatureCount != 8)
-		{
-			logError("AnalogInformation response contains a temperature count of " + std::to_string(analogInformation.temperatureCount) + " which is not one of the expected values of 6 or 8. Please file an issue report with full logs at VERY_VERBOSE level.");
-			return false;
-		}
 		if (analogInformation.temperatureCount > MAX_TEMP_COUNT)
 		{
-			// Eenovance/Sunsynk have 8 temperature readings, this is "expected" so we can log info instead of warning
-			if(currentProtocolVariant->analogInformationUserDefinedValue == 4)
-			{
-				logInfo("Response contains more temperature readings than are supported (" + std::to_string(analogInformation.temperatureCount) + "), but that is expected for this protocol variant; the 7th and 8th readings will be ignored");
-			}
-			else
-			{
-				logWarning("Response contains more temperature readings than are supported (" + std::to_string(analogInformation.temperatureCount) + "), results will be truncated");
-			}
+			logWarning("Response contains more temperature readings than are supported (" + std::to_string(analogInformation.temperatureCount) + "), readings beyond the first " + std::to_string(MAX_TEMP_COUNT) + " will not be reported");
 		}
 		for (int i = 0; i < analogInformation.temperatureCount; i++)
 		{
@@ -300,7 +286,7 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 		analogInformation.maxCellDifferentialMillivolts = analogInformation.maxCellVoltageMillivolts - analogInformation.minCellVoltageMillivolts;
 	
 		// skip any extra bytes that are part of this protocol variant
-		byteOffset += currentProtocolVariant->analogInformationExtraBytes;
+		byteOffset += currentProtocolVariant->analogInformationTrailingBytes;
 
 		if(onPayload != nullptr)
 			onPayload(payloadCount, index, analogInformation);
@@ -732,14 +718,14 @@ bool PaceBmsProtocolV25::ProcessReadStatusInformationResponse(const uint8_t busI
 			error = true;
 		}
 
-		int remainder = (payloadLen - 4 /* initial zero byte plus payload len byte */) % ((72 /* standard status info payload size */ + currentProtocolVariant->statusInformationExtraBytes));
+		int remainder = (payloadLen - 4 /* initial zero byte plus payload len byte */) % ((72 /* standard status info payload size */ + currentProtocolVariant->statusInformationTotalExtraBytes));
 		if(remainder != 0)
 		{
 			logError("Response to StatusInformation broadcast request contains a total payload length that is not a multiple of the expected payload size, remainder " + std::to_string(remainder) + " bytes.");
 			error = true;
 		}
 
-		int calculatedPayloadCount = (payloadLen - 4 /* initial zero byte plus payload len byte */) / ((72 /* standard status info payload size */ + currentProtocolVariant->statusInformationExtraBytes));
+		int calculatedPayloadCount = (payloadLen - 4 /* initial zero byte plus payload len byte */) / ((72 /* standard status info payload size */ + currentProtocolVariant->statusInformationTotalExtraBytes));
 		if(calculatedPayloadCount != payloadCount)
 		{
 			logWarning("Response to StatusInformation broadcast request contains a payload count of " + std::to_string(payloadCount) + " but the total payload length indicates " + std::to_string(calculatedPayloadCount) + " payloads are present; using calculated value");
@@ -792,22 +778,9 @@ bool PaceBmsProtocolV25::ProcessReadStatusInformationResponse(const uint8_t busI
 		}
 
 		uint8_t tempCount = ReadHexEncodedByte(response, byteOffset, quietMode);
-		if(tempCount != 6 && tempCount != 8)
-		{
-			logError("StatusInformation response contains a temperature count of " + std::to_string(tempCount) + " which is not one of the expected values of 6 or 8. Please file an issue report with full logs at VERY_VERBOSE level.");
-			return false;
-		}
 		if (tempCount > MAX_TEMP_COUNT)
 		{
-			// Eenovance/Sunsynk have 8 temperature readings, this is "expected" so we can log info instead of warning
-			if(currentProtocolVariant->analogInformationUserDefinedValue == 4)
-			{
-				logInfo("Response contains more temperature readings than are supported (" + std::to_string(tempCount) + "), but that is expected for this protocol variant; the extra readings will still be decoded to the status string but will be unavailable as numeric values");
-			}
-			else
-			{
-				logWarning("Response contains more temperature readings than are supported (" + std::to_string(tempCount) + "), the extra readings will still be decoded to the status string but will be unavailable as numeric values");
-			}
+			logWarning("Response contains more temperature readings than are supported (" + std::to_string(tempCount) + "), readings beyond the first " + std::to_string(MAX_TEMP_COUNT) + " will still be decoded to the status string, but will be unavailable as numeric status values");
 		}
 		int sanityCheck_cellsWithoutTemperatureWarnings = 0;
 		for (int i = 0; i < tempCount; i++)
@@ -971,7 +944,7 @@ bool PaceBmsProtocolV25::ProcessReadStatusInformationResponse(const uint8_t busI
 		}
 
 		// skip any extra bytes that are part of this protocol variant
-		byteOffset += currentProtocolVariant->statusInformationExtraBytes;
+		byteOffset += currentProtocolVariant->statusInformationTrailingBytes;
 
 		if(onPayload != nullptr)
 			onPayload(payloadCount, index, statusInformation);
