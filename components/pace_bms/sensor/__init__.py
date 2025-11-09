@@ -71,6 +71,8 @@ CONF_TEMPERATURE_03 = "temperature_03"
 CONF_TEMPERATURE_04 = "temperature_04"
 CONF_TEMPERATURE_05 = "temperature_05"
 CONF_TEMPERATURE_06 = "temperature_06"
+CONF_TEMPERATURE_07 = "temperature_07"
+CONF_TEMPERATURE_08 = "temperature_08"
 TEMPERATURES = [
     CONF_TEMPERATURE_01,
     CONF_TEMPERATURE_02,
@@ -78,6 +80,8 @@ TEMPERATURES = [
     CONF_TEMPERATURE_04,
     CONF_TEMPERATURE_05,
     CONF_TEMPERATURE_06,
+    CONF_TEMPERATURE_07,
+    CONF_TEMPERATURE_08,
 ]
 CONF_CURRENT = "current"
 CONF_TOTAL_VOLTAGE = "total_voltage"
@@ -132,6 +136,8 @@ CONF_WARNING_STATUS_VALUE_TEMP_03           = "warning_status_value_temperature_
 CONF_WARNING_STATUS_VALUE_TEMP_04           = "warning_status_value_temperature_04"
 CONF_WARNING_STATUS_VALUE_TEMP_05           = "warning_status_value_temperature_05"
 CONF_WARNING_STATUS_VALUE_TEMP_06           = "warning_status_value_temperature_06"
+CONF_WARNING_STATUS_VALUE_TEMP_07           = "warning_status_value_temperature_07"
+CONF_WARNING_STATUS_VALUE_TEMP_08           = "warning_status_value_temperature_08"
 CONF_WARNING_STATUS_VALUE_TEMPS = [
     CONF_WARNING_STATUS_VALUE_TEMP_01,
     CONF_WARNING_STATUS_VALUE_TEMP_02,
@@ -139,6 +145,8 @@ CONF_WARNING_STATUS_VALUE_TEMPS = [
     CONF_WARNING_STATUS_VALUE_TEMP_04,
     CONF_WARNING_STATUS_VALUE_TEMP_05,
     CONF_WARNING_STATUS_VALUE_TEMP_06,
+    CONF_WARNING_STATUS_VALUE_TEMP_07,
+    CONF_WARNING_STATUS_VALUE_TEMP_08,
 ]
 CONF_WARNING_STATUS_VALUE_CHARGE_CURRENT    = "warning_status_value_charge_current"
 CONF_WARNING_STATUS_VALUE_TOTAL_VOLTAGE     = "warning_status_value_total_voltage"
@@ -339,6 +347,18 @@ CONFIG_SCHEMA = cv.All(
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_TEMPERATURE_06): sensor.sensor_schema(
+            unit_of_measurement=UNIT_CELSIUS,
+            accuracy_decimals=1,
+            device_class=DEVICE_CLASS_TEMPERATURE,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_TEMPERATURE_07): sensor.sensor_schema(
+            unit_of_measurement=UNIT_CELSIUS,
+            accuracy_decimals=1,
+            device_class=DEVICE_CLASS_TEMPERATURE,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_TEMPERATURE_08): sensor.sensor_schema(
             unit_of_measurement=UNIT_CELSIUS,
             accuracy_decimals=1,
             device_class=DEVICE_CLASS_TEMPERATURE,
@@ -549,6 +569,18 @@ CONFIG_SCHEMA = cv.All(
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_WARNING_STATUS_VALUE_TEMP_06): sensor.sensor_schema(
+            #unit_of_measurement=,
+            accuracy_decimals=0,
+            #device_class=,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_WARNING_STATUS_VALUE_TEMP_07): sensor.sensor_schema(
+            #unit_of_measurement=,
+            accuracy_decimals=0,
+            #device_class=,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_WARNING_STATUS_VALUE_TEMP_08): sensor.sensor_schema(
             #unit_of_measurement=,
             accuracy_decimals=0,
             #device_class=,

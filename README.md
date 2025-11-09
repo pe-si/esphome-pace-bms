@@ -100,7 +100,7 @@ These *read-only* settings are supported for all protocol versions and variants,
   - **Cell Count**
   - **Cell Voltage** (V) - up to x16 depending on your battery pack
   - **Temperature Count**
-  - **Temperature** (°C) - up to x6 depending on your battery pack (there is one brand that has 8), order is not guaranteed and varies by manufacturer but a typical setup might be:
+  - **Temperature** (°C) - up to x6 depending on your battery pack (there is one variant that has 8), order is not guaranteed and varies by manufacturer but a typical setup might be:
     - *Cell Temperature* 1-4 
     - *MOSFET Temperature* 
     - *Environment Temperature*
@@ -598,6 +598,12 @@ sensor:
       name: "MOSFET Temperature"
     temperature_06:
       name: "Environment Temperature"
+
+    # Temperature 7 and 8 are only available on one firmware variant used by Eenovance (rebadged Sunsynk) that I am aware of, so you should leave these out unless your battery pack reports 8 temperature readings
+    #temperature_07:
+    #  name: "Unknown Temperature (7)"
+    #temperature_08:
+    #  name: "Unknown Temperature (8)"
 
     total_voltage:
       name: "Total Voltage"
@@ -1323,6 +1329,12 @@ sensor:
       name: "Warning Status Value Temperature 05"
     warning_status_value_temperature_06:
       name: "Warning Status Value Temperature 06"
+
+    # Temperature 7 and 8 are only available on one firmware variant used by Eenovance (rebadged Sunsynk) that I am aware of, so you should leave these out unless your battery pack reports 8 temperature readings
+    #warning_status_value_temperature_07:
+    #  name: "Warning Status Value Temperature 07"
+    #warning_status_value_temperature_08:
+    #  name: "Warning Status Value Temperature 08"
     
     warning_status_value_charge_current:
       name: "Warning Status Value Charge Current"
@@ -1352,7 +1364,7 @@ sensor:
 
 The entries:
 - `warning_status_value_cell_01` through `warning_status_value_cell_16`
-- `warning_status_value_temperature_01` through `warning_status_value_temperature_06`
+- `warning_status_value_temperature_01` through `warning_status_value_temperature_06` (or through _08 for one firmware variant)
 - `warning_status_value_charge_current`
 - `warning_status_value_total_voltage`
 - `warning_status_value_discharge_current`

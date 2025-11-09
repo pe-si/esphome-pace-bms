@@ -168,6 +168,12 @@ sensor:
     temperature_06:
       name: "Environment Temperature"
 
+    # Temperature 7 and 8 are only available on one firmware variant used by Eenovance (rebadged Sunsynk) that I am aware of, so you should leave these out unless your battery pack reports 8 temperature readings
+    #temperature_07:
+    #  name: "Unknown Temperature (7)"
+    #temperature_08:
+    #  name: "Unknown Temperature (8)"
+
     total_voltage:
       name: "Total Voltage"
     current:

@@ -56,11 +56,11 @@ void PaceBmsSensor::setup() {
 void PaceBmsSensor::dump_config() {
 	ESP_LOGCONFIG(TAG, "pace_bms_sensor:");
 	LOG_SENSOR("  ", "Cell Count", this->cell_count_sensor_);
-	for (int i = 0; i < 16; i++)
+	for (int i = 0; i < MAX_CELL_COUNT; i++)
 		LOG_SENSOR("  ", "Cell Voltage X of 16", this->cell_voltage_sensor_[i]);
 	LOG_SENSOR("  ", "Temperature Count", this->temperature_count_sensor_);
-	for (int i = 0; i < 6; i++)
-		LOG_SENSOR("  ", "Temperature X of 6", this->temperature_sensor_[i]);
+	for (int i = 0; i < MAX_TEMP_COUNT; i++)
+		LOG_SENSOR("  ", "Temperature X of 8", this->temperature_sensor_[i]);
 	LOG_SENSOR("  ", "Current", this->current_sensor_);
 	LOG_SENSOR("  ", "Total Voltage", this->total_voltage_sensor_);
 	LOG_SENSOR("  ", "Remaining Capacity", this->remaining_capacity_sensor_);
@@ -74,10 +74,10 @@ void PaceBmsSensor::dump_config() {
 	LOG_SENSOR("  ", "Max Cell Voltage", this->max_cell_voltage_sensor_);
 	LOG_SENSOR("  ", "Avg Cell Voltage", this->avg_cell_voltage_sensor_);
 	LOG_SENSOR("  ", "Max Cell Differential", this->max_cell_differential_sensor_);
-	for (int i = 0; i < 16; i++)
+	for (int i = 0; i < MAX_CELL_COUNT; i++)
 		LOG_SENSOR("  ", "Warning Status Value Cell X of 16", this->warning_status_value_cells_sensor_[i]);
-	for (int i = 0; i < 6; i++)
-		LOG_SENSOR("  ", "Warning Status Value Temperature X of 6", this->temperature_sensor_[i]);
+	for (int i = 0; i < MAX_TEMP_COUNT; i++)
+		LOG_SENSOR("  ", "Warning Status Value Temperature X of 6", this->warning_status_value_temps_sensor_[i]);
 	LOG_SENSOR("  ", "Warning Status Value Charge Current", this->warning_status_value_charge_current_sensor_);
 	LOG_SENSOR("  ", "Warning Status Value Total Voltage", this->warning_status_value_total_voltage_sensor_);
 	LOG_SENSOR("  ", "Warning Status Value Discharge Current", this->warning_status_value_discharge_current_sensor_);
@@ -100,7 +100,7 @@ void PaceBmsSensor::analog_information_callback_v25(PaceBmsProtocolV25::AnalogIn
 	if (this->cell_count_sensor_ != nullptr) {
 		this->parent_->queue_sensor_update([this, value = analog_information.cellCount]() { this->cell_count_sensor_->publish_state(value); });
 	}
-	for (int i = 0; i < 16; i++) {
+	for (int i = 0; i < MAX_CELL_COUNT; i++) {
 		if (this->cell_voltage_sensor_[i] != nullptr) {
 			this->parent_->queue_sensor_update([this, i, value = analog_information.cellVoltagesMillivolts[i] / 1000.0f]() { this->cell_voltage_sensor_[i]->publish_state(value); });
 		}
@@ -108,7 +108,7 @@ void PaceBmsSensor::analog_information_callback_v25(PaceBmsProtocolV25::AnalogIn
 	if (this->temperature_count_sensor_ != nullptr) {
 		this->temperature_count_sensor_->publish_state(analog_information.temperatureCount);
 	}
-	for (int i = 0; i < 6; i++) {
+	for (int i = 0; i < MAX_TEMP_COUNT; i++) {
 		if (this->temperature_sensor_[i] != nullptr) {
 			this->parent_->queue_sensor_update([this, i, value = analog_information.temperaturesTenthsCelcius[i] / 10.0f]() { this->temperature_sensor_[i]->publish_state(value); });
 		}
@@ -155,12 +155,12 @@ void PaceBmsSensor::analog_information_callback_v25(PaceBmsProtocolV25::AnalogIn
 }
 
 void PaceBmsSensor::status_information_callback_v25(PaceBmsProtocolV25::StatusInformation& status_information) {
-	for (int i = 0; i < 16; i++) {
+	for (int i = 0; i < MAX_CELL_COUNT; i++) {
 		if (this->warning_status_value_cells_sensor_[i] != nullptr) {
 			this->parent_->queue_sensor_update([this, i, value = status_information.warning_value_cell[i]]() { this->warning_status_value_cells_sensor_[i]->publish_state(value); });
 		}
 	}
-	for (int i = 0; i < 6; i++) {
+	for (int i = 0; i < MAX_TEMP_COUNT; i++) {
 		if (this->warning_status_value_temps_sensor_[i] != nullptr) {
 			this->parent_->queue_sensor_update([this, i, value = status_information.warning_value_temp[i]]() { this->warning_status_value_temps_sensor_[i]->publish_state(value); });
 		}
@@ -204,7 +204,7 @@ void PaceBmsSensor::analog_information_callback_v20(PaceBmsProtocolV20::AnalogIn
 	if (this->cell_count_sensor_ != nullptr) {
 		this->parent_->queue_sensor_update([this, value = analog_information.cellCount]() { this->cell_count_sensor_->publish_state(value); });
 	}
-	for (int i = 0; i < 16; i++) {
+	for (int i = 0; i < MAX_CELL_COUNT; i++) {
 		if (this->cell_voltage_sensor_[i] != nullptr) {
 			this->parent_->queue_sensor_update([this, i, value = analog_information.cellVoltagesMillivolts[i] / 1000.0f]() { this->cell_voltage_sensor_[i]->publish_state(value); });
 		}
@@ -212,7 +212,7 @@ void PaceBmsSensor::analog_information_callback_v20(PaceBmsProtocolV20::AnalogIn
 	if (this->temperature_count_sensor_ != nullptr) {
 		this->parent_->queue_sensor_update([this, value = analog_information.temperatureCount]() { this->temperature_count_sensor_->publish_state(value); });
 	}
-	for (int i = 0; i < 6; i++) {
+	for (int i = 0; i < MAX_TEMP_COUNT; i++) {
 		if (this->temperature_sensor_[i] != nullptr) {
 			this->parent_->queue_sensor_update([this, i, value = analog_information.temperaturesTenthsCelcius[i] / 10.0f]() { this->temperature_sensor_[i]->publish_state(value); });
 		}
@@ -259,12 +259,12 @@ void PaceBmsSensor::analog_information_callback_v20(PaceBmsProtocolV20::AnalogIn
 }
 
 void PaceBmsSensor::status_information_callback_v20(PaceBmsProtocolV20::StatusInformation& status_information) {
-	for (int i = 0; i < 16; i++) {
+	for (int i = 0; i < MAX_CELL_COUNT; i++) {
 		if (this->warning_status_value_cells_sensor_[i] != nullptr) {
 			this->parent_->queue_sensor_update([this, i, value = status_information.warning_value_cell[i]]() { this->warning_status_value_cells_sensor_[i]->publish_state(value); });
 		}
 	}
-	for (int i = 0; i < 6; i++) {
+	for (int i = 0; i < MAX_TEMP_COUNT; i++) {
 		if (this->warning_status_value_temps_sensor_[i] != nullptr) {
 			this->parent_->queue_sensor_update([this, i, value = status_information.warning_value_temp[i]]() { this->warning_status_value_temps_sensor_[i]->publish_state(value); });
 		}

@@ -9,6 +9,9 @@ namespace esphome {
 namespace pace_bms_base {
 
 class PaceBmsSensor : public Component {
+protected:
+	static const int MAX_CELL_COUNT = 16;
+	static const int MAX_TEMP_COUNT = 8;
 public:
 	void set_parent(PaceBmsBase* parent) { parent_ = parent; }
 
@@ -85,9 +88,9 @@ protected:
 
 	// analog info
 	sensor::Sensor* cell_count_sensor_{ nullptr };
-	sensor::Sensor* cell_voltage_sensor_[16]{ nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
+	sensor::Sensor* cell_voltage_sensor_[MAX_CELL_COUNT]{ nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
 	sensor::Sensor* temperature_count_sensor_{ nullptr };
-	sensor::Sensor* temperature_sensor_[6]{ nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
+	sensor::Sensor* temperature_sensor_[MAX_TEMP_COUNT]{ nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
 	sensor::Sensor* current_sensor_{ nullptr };
 	sensor::Sensor* total_voltage_sensor_{ nullptr };
 	sensor::Sensor* remaining_capacity_sensor_{ nullptr };
@@ -103,8 +106,8 @@ protected:
 	sensor::Sensor* max_cell_differential_sensor_{ nullptr };
 
 	// status info
-	sensor::Sensor* warning_status_value_cells_sensor_[16]{ nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
-	sensor::Sensor* warning_status_value_temps_sensor_[6]{ nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
+	sensor::Sensor* warning_status_value_cells_sensor_[MAX_CELL_COUNT]{ nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
+	sensor::Sensor* warning_status_value_temps_sensor_[MAX_TEMP_COUNT]{ nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
 	sensor::Sensor* warning_status_value_charge_current_sensor_{ nullptr };
 	sensor::Sensor* warning_status_value_total_voltage_sensor_{ nullptr };
 	sensor::Sensor* warning_status_value_discharge_current_sensor_{ nullptr };
