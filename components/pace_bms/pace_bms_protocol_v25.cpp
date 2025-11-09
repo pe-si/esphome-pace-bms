@@ -114,21 +114,20 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 	}
 
 	// first thing we need to do is look ahead and check the AnalogInformation UserDefinedValue, which tells us how to interpret the rest of the payload
-	uint16_t snoopOffset = 13 + 70;
+	// but before we can do that, we first need to figure out how many temperature readings are present since that changes the offset to the UserDefinedValue
+	uint16_t snoopOffset = 13 + 70; // 83
 	uint8_t lookAhead_TemperatureCount = ReadHexEncodedByte(response, snoopOffset, quietMode);
-	uint8_t lookAhead_AnalogInformationUserDefinedValue = -1;
-	if(lookAhead_TemperatureCount == 8)
+	if(lookAhead_TemperatureCount != 6 && lookAhead_TemperatureCount != 8)
 	{
-		// tsk tsk, Eenovance/Sunsynk have 8 temperature readings so the offset is advanced by 8 bytes, gotta love that vendor lock in!
-		uint16_t snoopOffset = 13 + 116; // 129
-		lookAhead_AnalogInformationUserDefinedValue = ReadHexEncodedByte(response, snoopOffset, quietMode);
+		logError("Sanity Check: AnalogInformation response contains a temperature count of " + std::to_string(lookAhead_TemperatureCount) + " which is not one of the expected values of 6 or 8. Please file an issue report with full logs at VERY_VERBOSE level.");
+
+		// this is probably an unknown variant and will fail later on, and depending on the reported temperature count we may even end up trying to read past the end 
+		// of the buffer or something, but this is guarded against anyway, so might as well try and see what happens
 	}
-	else
-	{
-		// "normal" offset for the User Defined Value
-		uint16_t snoopOffset = 13 + 108; // 121
-		lookAhead_AnalogInformationUserDefinedValue = ReadHexEncodedByte(response, snoopOffset, quietMode);
-	}
+	// calculate offset to the UserDefinedValue based on the temperature count
+	// the normal temperature count is 6, but Eenovance/Sunsynk have 8 temperature readings so the offset is advanced by an extra 8 bytes, gotta love that vendor lock in!
+	snoopOffset = 13 + 84 + (lookAhead_TemperatureCount * 4); // 121 for 6 temps, or, 129 for 8 temps
+	uint8_t lookAhead_AnalogInformationUserDefinedValue = ReadHexEncodedByte(response, snoopOffset, quietMode);
 	currentProtocolVariant = GetProtocolVariantInfo(lookAhead_AnalogInformationUserDefinedValue);
 	if(currentProtocolVariant == nullptr)
 	{
