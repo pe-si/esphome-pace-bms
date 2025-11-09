@@ -119,31 +119,31 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 	uint8_t lookAhead_TemperatureCount = ReadHexEncodedByte(response, snoopOffset, quietMode);
 	if(lookAhead_TemperatureCount != 6 && lookAhead_TemperatureCount != 8)
 	{
-		logError("Sanity Check: AnalogInformation response contains a temperature count of " + std::to_string(lookAhead_TemperatureCount) + " which is not one of the expected values of 6 or 8. Please file an issue report with full logs at VERY_VERBOSE level.");
-
-		// this is probably an unknown variant and will fail later on, and depending on the reported temperature count we may even end up trying to read past the end 
-		// of the buffer or something, but this is guarded against anyway, so might as well try and see what happens
+		logError("lookAhead: AnalogInformation response contains a temperature count of " + std::to_string(lookAhead_TemperatureCount) + " which is not one of the expected values of 6 or 8. Please file an issue report with full logs at VERY_VERBOSE level.");
+		return false;
 	}
 	// calculate offset to the UserDefinedValue based on the temperature count
 	// the normal temperature count is 6, but Eenovance/Sunsynk have 8 temperature readings so the offset is advanced by an extra 8 bytes, gotta love that vendor lock in!
 	snoopOffset = 13 + 84 + (lookAhead_TemperatureCount * 4); // 121 for 6 temps, or, 129 for 8 temps
 	uint8_t lookAhead_AnalogInformationUserDefinedValue = ReadHexEncodedByte(response, snoopOffset, quietMode);
 	currentProtocolVariant = GetProtocolVariantInfo(lookAhead_AnalogInformationUserDefinedValue);
+	bool using_default_fallback_variant = false;
 	if(currentProtocolVariant == nullptr)
 	{
-		logWarning("Response contains a constant with an unexpected value '" + std::to_string(lookAhead_AnalogInformationUserDefinedValue) + "' this may be an incorrect protocol variant. This will be ignored, but please file an issue report with full logs at VERY_VERBOSE level.");
+		logWarning("lookAhead: Response contains a constant with an unexpected value '" + std::to_string(lookAhead_AnalogInformationUserDefinedValue) + "' this may be an incorrect protocol variant. This will be ignored, but please file an issue report with full logs at VERY_VERBOSE level.");
 		// we can still try to parse the rest of the response, just assume the "standard" variant
 		currentProtocolVariant = GetProtocolVariantInfo(3);
+		using_default_fallback_variant = true;
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
 	uint16_t byteOffset = 13;
 
-	// SPEC BUG: doc says the response starts with the busId, but "on the wire" I see an extra byte value of 0x00 preceeding it
+	// SPEC BUG: doc says the response starts with the busId, but "on the wire" I see an extra byte value of 0x00 preceeding it - maybe they send it as a 16-bit value?
 	uint8_t unknown = ReadHexEncodedByte(response, byteOffset, quietMode);
 	if (unknown != 0)
 	{
-		logVerbose("Response contains a value other than zero before the BusId");
+		logWarning("Response contains a value other than zero before the BusId");
 	}
 
 	// by default we expect a single response, but if the request was sent to the broadcast address 0xFF, then 
@@ -219,11 +219,21 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 		// sanity checks to reject nonsensical responses
 		if(sanityCheck_totalVoltage == 0 || analogInformation.cellCount == 0)
 		{
-			logWarning("Sanity Check: Response contains zero cells, or all zero cell voltages, this looks like an invalid response.");
+			logError("Sanity Check: Response contains zero cells, or all zero cell voltages, this looks like an invalid response.");
 			return false;
 		}
 
 		analogInformation.temperatureCount = ReadHexEncodedByte(response, byteOffset, quietMode);
+		if(analogInformation.temperatureCount != lookAhead_TemperatureCount)
+		{
+			logError("AnalogInformation TemperatureCount mismatch between lookahead value and actual value read from response, this is a bug in PACE_BMS. Please file an issue report with full logs at VERY_VERBOSE level.");
+			return false;
+		}
+		if(analogInformation.temperatureCount != 6 && analogInformation.temperatureCount != 8)
+		{
+			logError("AnalogInformation response contains a temperature count of " + std::to_string(analogInformation.temperatureCount) + " which is not one of the expected values of 6 or 8. Please file an issue report with full logs at VERY_VERBOSE level.");
+			return false;
+		}
 		if (analogInformation.temperatureCount > MAX_TEMP_COUNT)
 		{
 			// Eenovance/Sunsynk have 8 temperature readings, this is "expected" so we can log info instead of warning
@@ -253,9 +263,10 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 		analogInformation.remainingCapacityMilliampHours = ReadHexEncodedUShort(response, byteOffset, quietMode) * 10;
 
 		uint8_t again_AnalogInformationUserDefinedValue = ReadHexEncodedByte(response, byteOffset, quietMode);
-		if (again_AnalogInformationUserDefinedValue != currentProtocolVariant->analogInformationUserDefinedValue)
+		if (again_AnalogInformationUserDefinedValue != currentProtocolVariant->analogInformationUserDefinedValue &&
+		    using_default_fallback_variant == false)
 		{
-			logWarning("AnalogInformation UserDefinedValue lookahead mismatch, this is a bug in PACE_BMS. Please file an issue report with full logs at VERY_VERBOSE level.");
+			logError("AnalogInformation UserDefinedValue lookahead mismatch, this is a bug in PACE_BMS. Please file an issue report with full logs at VERY_VERBOSE level.");
 			return false;
 		}
 
@@ -299,7 +310,7 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 	// we expect to be exactly at the end of the payload now
 	if (byteOffset != payloadLen + 13 /* frame header length */)
 	{
-		logError("Length mismatch reading analog information response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off. This will be ignored, but accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
+		logWarning("Length mismatch reading analog information response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off. This will be ignored, but accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
 		//return false;
 	}
 
@@ -781,26 +792,40 @@ bool PaceBmsProtocolV25::ProcessReadStatusInformationResponse(const uint8_t busI
 		}
 
 		uint8_t tempCount = ReadHexEncodedByte(response, byteOffset, quietMode);
+		if(tempCount != 6 && tempCount != 8)
+		{
+			logError("StatusInformation response contains a temperature count of " + std::to_string(tempCount) + " which is not one of the expected values of 6 or 8. Please file an issue report with full logs at VERY_VERBOSE level.");
+			return false;
+		}
 		if (tempCount > MAX_TEMP_COUNT)
 		{
-			logWarning("Response contains more temperature warnings than are supported, results will be truncated");
+			// Eenovance/Sunsynk have 8 temperature readings, this is "expected" so we can log info instead of warning
+			if(currentProtocolVariant->analogInformationUserDefinedValue == 4)
+			{
+				logInfo("Response contains more temperature readings than are supported (" + std::to_string(tempCount) + "), but that is expected for this protocol variant; the extra readings will still be decoded to the status string but will be unavailable as numeric values");
+			}
+			else
+			{
+				logWarning("Response contains more temperature readings than are supported (" + std::to_string(tempCount) + "), the extra readings will still be decoded to the status string but will be unavailable as numeric values");
+			}
 		}
 		int sanityCheck_cellsWithoutTemperatureWarnings = 0;
 		for (int i = 0; i < tempCount; i++)
 		{
 			uint8_t tw = ReadHexEncodedByte(response, byteOffset, quietMode);
-			statusInformation.warning_value_temp[i] = tw;
 
 			sanityCheck_cellsWithoutTemperatureWarnings += (tw == 0 ? 1 : 0);
 
+			if (tw != 0)
+			{
+				// below/above limit
+				statusInformation.warningText.append(std::string("Temperature ") + std::to_string(i + 1) + ": " + DecodeWarningValue(tw, "PaceBmsProtocolV25::ProcessReadStatusInformationResponse") + std::string("; "));
+			}
+
 			if (i > MAX_TEMP_COUNT - 1)
-				continue;
+				continue; // already logged above if count was too high
 
-			if (tw == 0)
-				continue;
-
-			// below/above limit
-			statusInformation.warningText.append(std::string("Temperature ") + std::to_string(i + 1) + ": " + DecodeWarningValue(tw, "PaceBmsProtocolV25::ProcessReadStatusInformationResponse") + std::string("; "));
+			statusInformation.warning_value_temp[i] = tw;
 		}
 
 		uint8_t chargeCurrentWarn = ReadHexEncodedByte(response, byteOffset, quietMode);
@@ -956,7 +981,7 @@ bool PaceBmsProtocolV25::ProcessReadStatusInformationResponse(const uint8_t busI
 	// we expect to be exactly at the end of the payload now
 	if (byteOffset != payloadLen + 13)
 	{
-		logError("Length mismatch reading status information response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off. This will be ignored, but accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
+		logWarning("Length mismatch reading status information response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off. This will be ignored, but accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
 		//return false;
 	}
 
