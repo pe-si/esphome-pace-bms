@@ -26,6 +26,10 @@ offset LENID+13, 2 bytes,  HexASCII, "FD2E": CHKSUM       - checksum
 offset LENID+17, 1 byte,   binary    0x0D:   EOI          - end of information '\r'
 */
 
+const uint8_t FRAME_HEADER_SIZE = 13;
+const uint8_t PAYLOAD_START_OFFSET = 13;
+const uint8_t FRAME_SIZE_WITHOUT_PAYLOAD = 18; // SOI + VER + ADR + CID1 + CID2 + CKLEN(2) + CHKSUM(2) + EOI
+
 // dependency injection
 //typedef void (*LogFuncPtr)(std::string message);
 typedef std::function<void(std::string)> LogFuncPtr;

@@ -2,6 +2,8 @@
 
 #include "pace_bms_protocol_base.h"
 
+const uint8_t MINIMUM_ANALOG_INFORMATION_PAYLOAD_SIZE = 122; // UserDefinedValue = 3, the baseline PACE firmware version
+
 class PaceBmsProtocolV25 : public PaceBmsProtocolBase
 {
 public:
@@ -86,10 +88,24 @@ protected:
 
 	struct Protocol25Variant
 	{
+		// the value found in the "User Defined Value" field of the Analog Information response
+		// this identifies the protocol variant being used
 		int16_t analogInformationUserDefinedValue;
+		// all known variants add extra information at the end of the responses - we don't bother to decode that extra information,
+		// but we do need to know how many extra bytes to skip over before doing the final byte offset sanity check (or decoding the next response in 
+		// a multi-pack broadcast reply)
 		int16_t analogInformationTrailingBytes;
+		// all known variants add extra information at the end of the responses - we don't bother to decode that extra information,
+		// but we do need to know how many extra bytes to skip over before doing the final byte offset sanity check (or decoding the next response in 
+		// a multi-pack broadcast reply)
 		int16_t statusInformationTrailingBytes;
+		// a "tricky" thing is that some variants add extra temperature readings which affects the total payload size calculations in a multi-pack response
+		// these extra bytes are not trailing, but instead embedded in the main body of the response, so we need a separate count for these
+		// this value is used in the multi-pack up-front payload size calculations whereas the "TrailingBytes" values are used when walking through the responses
 		int16_t analogInformationTotalExtraBytes;
+		// a "tricky" thing is that some variants add extra temperature readings which affects the total payload size calculations in a multi-pack response
+		// these extra bytes are not trailing, but instead embedded in the main body of the response, so we need a separate count for these
+		// this value is used in the multi-pack up-front payload size calculations whereas the "TrailingBytes" values are used when walking through the responses
 		int16_t statusInformationTotalExtraBytes;
 	};
 
@@ -123,9 +139,9 @@ protected:
 			2,  // statusInformationTotalExtraBytes
 		},
 		// reported by johnmsole that Eenovance/Sunsynk packs have an 2 extra temperatures (2 * 4 bytes) plus an extra 28 bytes at the end containing unknown 
-		// information for a total of 36 extra bytes in the analog info response
-		//     the 8 temperature readings requires some special handling that is hard coded in ProcessReadAnalogInformationResponse
-		// and an extra 6 bytes at the end of the status response containing unknown information
+		// information for a total of 36 extra bytes in the AnalogInformation response
+		//     note that the 8 temperature readings require some special handling for UserDefinedValue look-ahead in ProcessReadAnalogInformationResponse
+		// and for status responses there is an extra 6 bytes at the end, again containing unknown information
 		{
 			4,  // analogInformationUserDefinedValue
 			28, // analogInformationTrailingBytes

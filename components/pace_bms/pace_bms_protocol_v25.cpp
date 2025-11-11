@@ -40,7 +40,7 @@ bool PaceBmsProtocolV25::ProcessReadBmsCountResponse(const uint8_t busId, std::o
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	if (payloadLen != 2)
 	{
@@ -52,8 +52,8 @@ bool PaceBmsProtocolV25::ProcessReadBmsCountResponse(const uint8_t busId, std::o
 	bmsCount = ReadHexEncodedByte(response, byteOffset);
 
 	// we expect to be exactly at the end of the payload now
-	if (byteOffset != payloadLen + 13 /* frame header length */) {
-		LogError("Length mismatch reading ProcessReadBmsCountResponse response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET) {
+		LogError("Length mismatch reading ProcessReadBmsCountResponse response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
 	}
 
 	return true;
@@ -107,15 +107,18 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 	//	return false;
 	//}
 
-	if(payloadLen < 122)
+	if(payloadLen < MINIMUM_ANALOG_INFORMATION_PAYLOAD_SIZE)
 	{
-		logError("Sanity Check: AnalogInformation response payload length too short, must be at least 122 bytes but got " + std::to_string(payloadLen) + " bytes");
+		logError("Sanity Check: AnalogInformation response payload length too short, must be at least " + std::to_string(MINIMUM_ANALOG_INFORMATION_PAYLOAD_SIZE) + " bytes but got " + std::to_string(payloadLen) + " bytes");
 		return false;
 	}
 
 	// first thing we need to do is look ahead and check the AnalogInformation UserDefinedValue, which tells us how to interpret the rest of the payload
 	// but before we can do that, we first need to figure out how many temperature readings are present since that changes the offset to the UserDefinedValue
-	uint16_t snoopOffset = 13 + 70; // 83
+	// todo: should handle cell count dynamically for look-ahead here as well, but there are currently no known variants with a cell count other than 16, 
+	//       note that this would also offset the temperature count lookahead... if someone submits logs for such a variant I will implement that, but don't 
+	//       see a need to complicate things right now other than general principle
+	uint16_t snoopOffset = PAYLOAD_START_OFFSET + 70; // 83
 	uint8_t lookAhead_TemperatureCount = ReadHexEncodedByte(response, snoopOffset, quietMode);
 	if(lookAhead_TemperatureCount != 6 && lookAhead_TemperatureCount != 8)
 	{
@@ -123,7 +126,7 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 	}
 	// calculate offset to the UserDefinedValue based on the temperature count
 	// the normal temperature count is 6, but Eenovance/Sunsynk have 8 temperature readings so the offset is advanced by an extra 8 bytes, gotta love that vendor lock in!
-	snoopOffset = 13 + 84 + (lookAhead_TemperatureCount * 4); // 121 for 6 temps, or, 129 for 8 temps
+	snoopOffset = PAYLOAD_START_OFFSET + 84 + (lookAhead_TemperatureCount * 4); // 121 for 6 temps, or, 129 for 8 temps
 	uint8_t lookAhead_AnalogInformationUserDefinedValue = ReadHexEncodedByte(response, snoopOffset, quietMode);
 	currentProtocolVariant = GetProtocolVariantInfo(lookAhead_AnalogInformationUserDefinedValue);
 	bool using_default_fallback_variant = false;
@@ -136,18 +139,17 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
-	// SPEC BUG: doc says the response starts with the busId, but "on the wire" I see an extra byte value of 0x00 preceeding it - maybe they send it as a 16-bit value?
+	// SPEC BUG: doc says the response starts with the BusId (or PayloadCount if sending to address 0xFF), but "on the wire" I see an extra byte value of 0x00 preceeding this
 	uint8_t unknown = ReadHexEncodedByte(response, byteOffset, quietMode);
 	if (unknown != 0)
 	{
-		logWarning("Response contains a value other than zero before the BusId");
+		logWarning("Response contains a value other than zero before the BusId/PayloadCount");
 	}
 
 	// by default we expect a single response, but if the request was sent to the broadcast address 0xFF, then 
 	// instead of the next byte being the (payload) busId it is instead a count of how many responses are included
-	// (I think, but need more examples to be sure this is the proper interpretation)
 	uint8_t payloadCount = 1;
 	if(targetedBusId != 0xFF) 
 	{
@@ -159,7 +161,7 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 			return false;
 		}
 	}
-	else
+	else // else this is a broadcast response so do some extra checks around the payload count
 	{
 		bool error = false;
 
@@ -170,6 +172,7 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 			error = true;
 		}
 
+		// sanity check - payload length should be a multiple of the expected single-payload size
 		int remainder = (payloadLen - 4 /* initial zero byte plus payload len byte */) % ((118 /* standard analog info payload size */ + currentProtocolVariant->analogInformationTotalExtraBytes));
 		if(remainder != 0)
 		{
@@ -177,6 +180,8 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 			error = true;
 		}
 
+		// sanity check - payload count should match total payload length divided by expected single-payload size
+		// in case of a mismatch, use the calculated value instead of the provided value
 		int calculatedPayloadCount = (payloadLen - 4 /* initial zero byte plus payload len byte */) / ((118 /* standard analog info payload size */ + currentProtocolVariant->analogInformationTotalExtraBytes));
 		if(calculatedPayloadCount != payloadCount)
 		{
@@ -294,9 +299,9 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 
 	// this check remains valid with broadcast responses due to the loop above
 	// we expect to be exactly at the end of the payload now
-	if (byteOffset != payloadLen + 13 /* frame header length */)
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET)
 	{
-		logWarning("Length mismatch reading analog information response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off. This will be ignored, but accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
+		logWarning("Length mismatch reading analog information response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off. This will be ignored, but accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
 		//return false;
 	}
 
@@ -684,7 +689,7 @@ bool PaceBmsProtocolV25::ProcessReadStatusInformationResponse(const uint8_t busI
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	// SPEC BUG: doc says the response starts with the busId, but "on the wire" I see an extra byte value of 0x00 preceeding it
 	uint8_t unknown = ReadHexEncodedByte(response, byteOffset, quietMode);
@@ -952,9 +957,9 @@ bool PaceBmsProtocolV25::ProcessReadStatusInformationResponse(const uint8_t busI
 
 	// this check remains valid with broadcast responses due to the loop above
 	// we expect to be exactly at the end of the payload now
-	if (byteOffset != payloadLen + 13)
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET)
 	{
-		logWarning("Length mismatch reading status information response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off. This will be ignored, but accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
+		logWarning("Length mismatch reading status information response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off. This will be ignored, but accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
 		//return false;
 	}
 
@@ -985,7 +990,7 @@ bool PaceBmsProtocolV25::ProcessReadHardwareVersionResponse(const uint8_t busId,
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	hardwareVersion.resize(20);
 	for (int i = 0; i < 20; i++)
@@ -999,8 +1004,8 @@ bool PaceBmsProtocolV25::ProcessReadHardwareVersionResponse(const uint8_t busId,
 	}
 
 	// we expect to be exactly at the end of the payload now
-	if (byteOffset != payloadLen + 13 /* frame header length */) {
-		LogError("Length mismatch reading ProcessReadHardwareVersionResponse response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET) {
+		LogError("Length mismatch reading ProcessReadHardwareVersionResponse response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
 	}
 
 	return true;
@@ -1028,7 +1033,7 @@ bool PaceBmsProtocolV25::ProcessReadSerialNumberResponse(const uint8_t busId, st
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	serialNumber.resize(payloadLen / 2);
 	for (int i = 0; i < payloadLen / 2; i++)
@@ -1043,8 +1048,8 @@ bool PaceBmsProtocolV25::ProcessReadSerialNumberResponse(const uint8_t busId, st
 	}
 
 	// we expect to be exactly at the end of the payload now
-	if (byteOffset != payloadLen + 13 /* frame header length */) {
-		LogError("Length mismatch reading ProcessReadSerialNumberResponse response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET) {
+		LogError("Length mismatch reading ProcessReadSerialNumberResponse response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
 	}
 
 	return true;
@@ -1105,7 +1110,7 @@ bool PaceBmsProtocolV25::ProcessWriteSwitchCommandResponse(const uint8_t busId, 
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	uint8_t commandEcho = ReadHexEncodedByte(response, byteOffset);
 
@@ -1171,8 +1176,8 @@ bool PaceBmsProtocolV25::ProcessWriteSwitchCommandResponse(const uint8_t busId, 
 	}
 
 	// we expect to be exactly at the end of the payload now
-	if (byteOffset != payloadLen + 13 /* frame header length */) {
-		LogError("Length mismatch reading ProcessWriteSwitchCommandResponse response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET) {
+		LogError("Length mismatch reading ProcessWriteSwitchCommandResponse response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
 	}
 
 	return true;
@@ -1216,7 +1221,7 @@ bool PaceBmsProtocolV25::ProcessWriteMosfetSwitchCommandResponse(const uint8_t b
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	// this is behavior I have observed but is not documented
 	uint8_t unknown = ReadHexEncodedByte(response, byteOffset);
@@ -1250,8 +1255,8 @@ bool PaceBmsProtocolV25::ProcessWriteMosfetSwitchCommandResponse(const uint8_t b
 	}
 
 	// we expect to be exactly at the end of the payload now
-	if (byteOffset != payloadLen + 13 /* frame header length */) {
-		LogError("Length mismatch reading ProcessWriteMosfetSwitchCommandResponse response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET) {
+		LogError("Length mismatch reading ProcessWriteMosfetSwitchCommandResponse response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
 	}
 
 	return true;
@@ -1286,13 +1291,13 @@ bool PaceBmsProtocolV25::ProcessWriteShutdownCommandResponse(const uint8_t busId
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	// according to documentation, if the RTN code is 0 (this is checked by ValidateResponseAndGetPayloadLength) then it worked, no need to check response payload
 
 	// we expect to be exactly at the end of the payload now
-	if (byteOffset != payloadLen + 13 /* frame header length */) {
-		LogError("Length mismatch reading ProcessWriteShutdownCommandResponse response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET) {
+		LogError("Length mismatch reading ProcessWriteShutdownCommandResponse response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
 	}
 
 	return true;
@@ -1328,7 +1333,7 @@ bool PaceBmsProtocolV25::ProcessReadSystemDateTimeResponse(const uint8_t busId, 
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	dateTime.Year = ReadHexEncodedByte(response, byteOffset) + 2000;
 	dateTime.Month = ReadHexEncodedByte(response, byteOffset);
@@ -1338,8 +1343,8 @@ bool PaceBmsProtocolV25::ProcessReadSystemDateTimeResponse(const uint8_t busId, 
 	dateTime.Second = ReadHexEncodedByte(response, byteOffset);
 
 	// we expect to be exactly at the end of the payload now
-	if (byteOffset != payloadLen + 13 /* frame header length */) {
-		LogError("Length mismatch reading ProcessReadSystemDateTimeResponse response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET) {
+		LogError("Length mismatch reading ProcessReadSystemDateTimeResponse response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
 	}
 
 	return true;
@@ -1423,7 +1428,7 @@ bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, s
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	uint16_t unknown = ReadHexEncodedByte(response, byteOffset);
 	if (unknown != 01)
@@ -1438,8 +1443,8 @@ bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, s
 	config.ProtectionDelayMilliseconds = ReadHexEncodedByte(response, byteOffset) * 100;
 
 	// we expect to be exactly at the end of the payload now
-	if (byteOffset != payloadLen + 13 /* frame header length */) {
-		LogError("Length mismatch reading ProcessReadConfigurationResponse response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET) {
+		LogError("Length mismatch reading ProcessReadConfigurationResponse response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
 	}
 
 	return true;
@@ -1522,7 +1527,7 @@ bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, s
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	uint16_t unknown = ReadHexEncodedByte(response, byteOffset);
 	if (unknown != 01)
@@ -1537,8 +1542,8 @@ bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, s
 	config.ProtectionDelayMilliseconds = ReadHexEncodedByte(response, byteOffset) * 100;
 
 	// we expect to be exactly at the end of the payload now
-	if (byteOffset != payloadLen + 13 /* frame header length */) {
-		LogError("Length mismatch reading ProcessReadConfigurationResponse response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET) {
+		LogError("Length mismatch reading ProcessReadConfigurationResponse response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
 	}
 
 	return true;
@@ -1621,7 +1626,7 @@ bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, s
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	uint16_t unknown = ReadHexEncodedByte(response, byteOffset);
 	if (unknown != 01)
@@ -1636,8 +1641,8 @@ bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, s
 	config.ProtectionDelayMilliseconds = ReadHexEncodedByte(response, byteOffset) * 100;
 
 	// we expect to be exactly at the end of the payload now
-	if (byteOffset != payloadLen + 13 /* frame header length */) {
-		LogError("Length mismatch reading ProcessReadConfigurationResponse response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET) {
+		LogError("Length mismatch reading ProcessReadConfigurationResponse response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
 	}
 
 	return true;
@@ -1720,7 +1725,7 @@ bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, s
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	uint16_t unknown = ReadHexEncodedByte(response, byteOffset);
 	if (unknown != 01)
@@ -1735,8 +1740,8 @@ bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, s
 	config.ProtectionDelayMilliseconds = ReadHexEncodedByte(response, byteOffset) * 100;
 
 	// we expect to be exactly at the end of the payload now
-	if (byteOffset != payloadLen + 13 /* frame header length */) {
-		LogError("Length mismatch reading ProcessReadConfigurationResponse response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET) {
+		LogError("Length mismatch reading ProcessReadConfigurationResponse response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
 	}
 
 	return true;
@@ -1819,7 +1824,7 @@ bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, s
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	uint16_t unknown = ReadHexEncodedByte(response, byteOffset);
 	if (unknown != 01)
@@ -1833,8 +1838,8 @@ bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, s
 	config.ProtectionDelayMilliseconds = ReadHexEncodedByte(response, byteOffset) * 100;
 
 	// we expect to be exactly at the end of the payload now
-	if (byteOffset != payloadLen + 13 /* frame header length */) {
-		LogError("Length mismatch reading ProcessReadConfigurationResponse response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET) {
+		LogError("Length mismatch reading ProcessReadConfigurationResponse response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
 	}
 
 	return true;
@@ -1896,7 +1901,7 @@ bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, s
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	uint16_t unknown = ReadHexEncodedByte(response, byteOffset);
 	if (unknown != 01)
@@ -1910,8 +1915,8 @@ bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, s
 	config.ProtectionDelayMilliseconds = ReadHexEncodedByte(response, byteOffset) * 100;
 
 	// we expect to be exactly at the end of the payload now
-	if (byteOffset != payloadLen + 13 /* frame header length */) {
-		LogError("Length mismatch reading ProcessReadConfigurationResponse response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET) {
+		LogError("Length mismatch reading ProcessReadConfigurationResponse response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
 	}
 
 	return true;
@@ -1974,7 +1979,7 @@ bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, s
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	uint16_t unknown = ReadHexEncodedByte(response, byteOffset);
 	if (unknown != 0)
@@ -1990,8 +1995,8 @@ bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, s
 	byteOffset += 6;
 
 	// we expect to be exactly at the end of the payload now
-	if (byteOffset != payloadLen + 13 /* frame header length */) {
-		LogError("Length mismatch reading ProcessReadConfigurationResponse response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET) {
+		LogError("Length mismatch reading ProcessReadConfigurationResponse response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
 	}
 
 	return true;
@@ -2052,13 +2057,13 @@ bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, s
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	config.ProtectionDelayMicroseconds = ReadHexEncodedByte(response, byteOffset) * 25;
 
 	// we expect to be exactly at the end of the payload now
-	if (byteOffset != payloadLen + 13 /* frame header length */) {
-		LogError("Length mismatch reading ProcessReadConfigurationResponse response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET) {
+		LogError("Length mismatch reading ProcessReadConfigurationResponse response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
 	}
 
 	return true;
@@ -2106,14 +2111,14 @@ bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, s
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	config.ThresholdMillivolts = ReadHexEncodedUShort(response, byteOffset);
 	config.DeltaCellMillivolts = ReadHexEncodedUShort(response, byteOffset);
 
 	// we expect to be exactly at the end of the payload now
-	if (byteOffset != payloadLen + 13 /* frame header length */) {
-		LogError("Length mismatch reading ProcessReadConfigurationResponse response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET) {
+		LogError("Length mismatch reading ProcessReadConfigurationResponse response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
 	}
 
 	return true;
@@ -2167,7 +2172,7 @@ bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, s
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	config.CellMillivolts = ReadHexEncodedUShort(response, byteOffset);
 	uint8_t unknown2 = ReadHexEncodedByte(response, byteOffset);
@@ -2180,8 +2185,8 @@ bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, s
 	}
 
 	// we expect to be exactly at the end of the payload now
-	if (byteOffset != payloadLen + 13 /* frame header length */) {
-		LogError("Length mismatch reading ProcessReadConfigurationResponse response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET) {
+		LogError("Length mismatch reading ProcessReadConfigurationResponse response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
 	}
 
 	return true;
@@ -2236,15 +2241,15 @@ bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, s
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	config.FullChargeMillivolts = ReadHexEncodedUShort(response, byteOffset);
 	config.FullChargeMilliamps = ReadHexEncodedUShort(response, byteOffset);
 	config.LowChargeAlarmPercent = ReadHexEncodedByte(response, byteOffset);
 
 	// we expect to be exactly at the end of the payload now
-	if (byteOffset != payloadLen + 13 /* frame header length */) {
-		LogError("Length mismatch reading ProcessReadConfigurationResponse response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET) {
+		LogError("Length mismatch reading ProcessReadConfigurationResponse response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
 	}
 
 	return true;
@@ -2309,7 +2314,7 @@ bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, s
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	uint16_t unknown = ReadHexEncodedByte(response, byteOffset);
 	if (unknown != 01)
@@ -2326,8 +2331,8 @@ bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, s
 	config.DischargeProtectionRelease = (ReadHexEncodedUShort(response, byteOffset) - 2730) / 10;
 
 	// we expect to be exactly at the end of the payload now
-	if (byteOffset != payloadLen + 13 /* frame header length */) {
-		LogError("Length mismatch reading ProcessReadConfigurationResponse response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET) {
+		LogError("Length mismatch reading ProcessReadConfigurationResponse response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
 	}
 
 	return true;
@@ -2402,7 +2407,7 @@ bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, s
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	uint16_t unknown = ReadHexEncodedByte(response, byteOffset);
 	if (unknown != 01)
@@ -2419,8 +2424,8 @@ bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, s
 	config.DischargeProtectionRelease = (ReadHexEncodedUShort(response, byteOffset) - 2730) / 10;
 
 	// we expect to be exactly at the end of the payload now
-	if (byteOffset != payloadLen + 13 /* frame header length */) {
-		LogError("Length mismatch reading ProcessReadConfigurationResponse response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET) {
+		LogError("Length mismatch reading ProcessReadConfigurationResponse response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
 	}
 
 	return true;
@@ -2495,7 +2500,7 @@ bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, s
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	uint16_t unknown = ReadHexEncodedByte(response, byteOffset);
 	if (unknown != 01)
@@ -2509,8 +2514,8 @@ bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, s
 	config.ProtectionRelease = (ReadHexEncodedUShort(response, byteOffset) - 2730) / 10;
 
 	// we expect to be exactly at the end of the payload now
-	if (byteOffset != payloadLen + 13 /* frame header length */) {
-		LogError("Length mismatch reading ProcessReadConfigurationResponse response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET) {
+		LogError("Length mismatch reading ProcessReadConfigurationResponse response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
 	}
 
 	return true;
@@ -2567,7 +2572,7 @@ bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, s
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	uint16_t unknown = ReadHexEncodedByte(response, byteOffset);
 	if (unknown != 01)
@@ -2584,8 +2589,8 @@ bool PaceBmsProtocolV25::ProcessReadConfigurationResponse(const uint8_t busId, s
 	config.OverProtectionRelease = (ReadHexEncodedUShort(response, byteOffset) - 2730) / 10;
 
 	// we expect to be exactly at the end of the payload now
-	if (byteOffset != payloadLen + 13 /* frame header length */) {
-		LogError("Length mismatch reading ProcessReadConfigurationResponse response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET) {
+		LogError("Length mismatch reading ProcessReadConfigurationResponse response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
 	}
 
 	return true;
@@ -2673,7 +2678,7 @@ bool PaceBmsProtocolV25::ProcessReadChargeCurrentLimiterStartCurrentResponse(con
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	// note that this is the *payload* busId, not the header busId which was already validated
 	uint8_t busIdResponding = ReadHexEncodedByte(response, byteOffset);
@@ -2686,8 +2691,8 @@ bool PaceBmsProtocolV25::ProcessReadChargeCurrentLimiterStartCurrentResponse(con
 	current = ReadHexEncodedByte(response, byteOffset);
 
 	// we expect to be exactly at the end of the payload now
-	if (byteOffset != payloadLen + 13 /* frame header length */) {
-		LogError("Length mismatch reading ProcessReadChargeCurrentLimiterStartCurrentResponse response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET) {
+		LogError("Length mismatch reading ProcessReadChargeCurrentLimiterStartCurrentResponse response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
 	}
 
 	return true;
@@ -2749,15 +2754,15 @@ bool PaceBmsProtocolV25::ProcessReadRemainingCapacityResponse(const uint8_t busI
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	remainingCapacityMilliampHours = ReadHexEncodedUShort(response, byteOffset) * 10;
 	actualCapacityMilliampHours = ReadHexEncodedUShort(response, byteOffset) * 10;
 	designCapacityMilliampHours = ReadHexEncodedUShort(response, byteOffset) * 10;
 
 	// we expect to be exactly at the end of the payload now
-	if (byteOffset != payloadLen + 13 /* frame header length */) {
-		LogError("Length mismatch reading ProcessReadRemainingCapacityResponse response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET) {
+		LogError("Length mismatch reading ProcessReadRemainingCapacityResponse response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
 	}
 
 	return true;
@@ -2787,15 +2792,15 @@ bool PaceBmsProtocolV25::ProcessReadProtocolsResponse(const uint8_t busId, std::
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	protocols.CAN = (ProtocolList_CAN)ReadHexEncodedByte(response, byteOffset);
 	protocols.RS485 = (ProtocolList_RS485)ReadHexEncodedByte(response, byteOffset);
 	protocols.Type = (ProtocolList_Type)ReadHexEncodedByte(response, byteOffset);
 
 	// we expect to be exactly at the end of the payload now
-	if (byteOffset != payloadLen + 13 /* frame header length */) {
-		LogError("Length mismatch reading ProcessReadProtocolsResponse response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET) {
+		LogError("Length mismatch reading ProcessReadProtocolsResponse response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off. Accuracy of readouts may be compromised. Please file an issue report with full logs at VERY_VERBOSE level.");
 	}
 
 	return true;

@@ -393,7 +393,7 @@ int16_t PaceBmsProtocolBase::ValidateResponseAndGetPayloadLength(const uint8_t b
 
 	// the number of bytes for a response with zero payload, we'll check again once we decode the checksummed length embedded 
 	// in the response to make sure we don't run past the end of the buffer
-	if (response.size() < 18)
+	if (response.size() < FRAME_SIZE_WITHOUT_PAYLOAD)
 	{
 		logError("Response is truncated at " + std::to_string(response.size()) + " bytes, even a response without payload should be 18 bytes long");
 		return -1;

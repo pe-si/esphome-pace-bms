@@ -50,7 +50,7 @@ bool PaceBmsProtocolV20::ProcessReadAnalogInformationResponse(const uint8_t busI
 		uint16_t byteOffset;
 
 		bool isEG4 = false;
-		byteOffset = 13 + 116;
+		byteOffset = PAYLOAD_START_OFFSET + 116;
 		if (response.size() - byteOffset > 2)
 		{
 			uint8_t byte = ReadHexEncodedByte(response, byteOffset);
@@ -59,7 +59,7 @@ bool PaceBmsProtocolV20::ProcessReadAnalogInformationResponse(const uint8_t busI
 		}
 
 		bool isPylon = false;
-		byteOffset = 13 + 106;
+		byteOffset = PAYLOAD_START_OFFSET + 106;
 		if (response.size() - byteOffset > 2)
 		{
 			uint8_t byte = ReadHexEncodedByte(response, byteOffset);
@@ -68,7 +68,7 @@ bool PaceBmsProtocolV20::ProcessReadAnalogInformationResponse(const uint8_t busI
 		}
 
 		bool isSeplos = false;
-		byteOffset = 13 + 106;
+		byteOffset = PAYLOAD_START_OFFSET + 106;
 		if (response.size() - byteOffset > 2)
 		{
 			uint8_t byte = ReadHexEncodedByte(response, byteOffset);
@@ -164,7 +164,7 @@ bool PaceBmsProtocolV20::ProcessReadAnalogInformationResponse_PYLON(const uint8_
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	// spec says "infoflag" preceeds the response data but doesn't explain what that is, I'm assuming the example above is pylon, which means this is present
 	uint8_t data_flag = ReadHexEncodedByte(response, byteOffset);
@@ -208,8 +208,8 @@ bool PaceBmsProtocolV20::ProcessReadAnalogInformationResponse_PYLON(const uint8_
 	analogInformation.fullCapacityMilliampHours = ReadHexEncodedUShort(response, byteOffset) * 10;
 	analogInformation.cycleCount = ReadHexEncodedUShort(response, byteOffset);
 
-	if (byteOffset != payloadLen + 13)
-		LogWarning("Length mismatch reading analog information response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off");
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET)
+		LogWarning("Length mismatch reading analog information response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off");
 
 	// calculate some "extras"
 	analogInformation.SoC = ((float)analogInformation.remainingCapacityMilliampHours / (float)analogInformation.fullCapacityMilliampHours);
@@ -244,7 +244,7 @@ bool PaceBmsProtocolV20::ProcessReadAnalogInformationResponse_SEPLOS(const uint8
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	uint8_t data_flag = ReadHexEncodedByte(response, byteOffset);
 	//if (data_flag != 0)
@@ -296,8 +296,8 @@ bool PaceBmsProtocolV20::ProcessReadAnalogInformationResponse_SEPLOS(const uint8
 	// reserved 1-4 (16 bit each, two hex per byte encoding)
 	byteOffset += 16;
 
-	if (byteOffset != payloadLen + 13)
-		LogWarning("Length mismatch reading analog information response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off");
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET)
+		LogWarning("Length mismatch reading analog information response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off");
 
 	// calculate some "extras"
 	analogInformation.powerWatts = ((float)analogInformation.totalVoltageMillivolts * (float)analogInformation.currentMilliamps) / 1000000.0f;
@@ -329,7 +329,7 @@ bool PaceBmsProtocolV20::ProcessReadAnalogInformationResponse_EG4(const uint8_t 
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	uint8_t data_flag = ReadHexEncodedByte(response, byteOffset);
 	//if (data_flag != 16)
@@ -397,8 +397,8 @@ bool PaceBmsProtocolV20::ProcessReadAnalogInformationResponse_EG4(const uint8_t 
 	uint16_t cumulativeChargeOccurences = ReadHexEncodedUShort(response, byteOffset);
 	uint16_t cumulativeDischargeOccurences = ReadHexEncodedUShort(response, byteOffset);
 
-	if (byteOffset != payloadLen + 13)
-		LogWarning("Length mismatch reading analog information response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off");
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET)
+		LogWarning("Length mismatch reading analog information response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off");
 
 	// calculate some "extras"
 	analogInformation.powerWatts = ((float)analogInformation.totalVoltageMillivolts * (float)analogInformation.currentMilliamps) / 1000000.0f;
@@ -1294,7 +1294,7 @@ bool PaceBmsProtocolV20::ProcessReadStatusInformationResponse(const uint8_t busI
 		uint16_t byteOffset;
 
 		bool isEG4 = false;
-		byteOffset = 13 + 56;
+		byteOffset = PAYLOAD_START_OFFSET + 56;
 		if (response.size() - byteOffset > 2)
 		{
 			uint8_t byte = ReadHexEncodedByte(response, byteOffset);
@@ -1304,7 +1304,7 @@ bool PaceBmsProtocolV20::ProcessReadStatusInformationResponse(const uint8_t busI
 
 		// I considered sniffing this out via payload length, but pylon doesn't contain any UD value and length may overlap between variants, plus I don't have a confirmed example!
 		bool isPylon = false;
-		//byteOffset = 13 + 56;
+		//byteOffset = PAYLOAD_START_OFFSET + 56;
 		//if (response.size() - byteOffset > 2)
 		//{
 		//	uint8_t byte = ReadHexEncodedByte(response, byteOffset);
@@ -1313,7 +1313,7 @@ bool PaceBmsProtocolV20::ProcessReadStatusInformationResponse(const uint8_t busI
 		//}
 
 		bool isSeplos = false;
-		byteOffset = 13 + 56;
+		byteOffset = PAYLOAD_START_OFFSET + 56;
 		if (response.size() - byteOffset > 2)
 		{
 			uint8_t byte = ReadHexEncodedByte(response, byteOffset);
@@ -1405,7 +1405,7 @@ bool PaceBmsProtocolV20::ProcessReadStatusInformationResponse_PYLON(const uint8_
 		return false;
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	// spec says "dataflag" preceeds the response data but doesn't explain what that is
 	uint8_t data_flag = ReadHexEncodedByte(response, byteOffset);
@@ -1486,8 +1486,8 @@ bool PaceBmsProtocolV20::ProcessReadStatusInformationResponse_PYLON(const uint8_
 	if (statusInformation.status5_value != 0)
 		StatusDecode_PYLON::DecodeStatus5Value(statusInformation.status5_value, statusInformation.faultText);
 
-	if (byteOffset != payloadLen + 13)
-		LogWarning("Length mismatch reading status information response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off");
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET)
+		LogWarning("Length mismatch reading status information response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off");
 
 	// pop off any trailing "; " separator
 	if (statusInformation.warningText.length() > 2)
@@ -1531,7 +1531,7 @@ bool PaceBmsProtocolV20::ProcessReadStatusInformationResponse_SEPLOS(const uint8
 		return false;
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	// spec says "dataflag" preceeds the response data but doesn't explain what that is
 	uint8_t data_flag = ReadHexEncodedByte(response, byteOffset);
@@ -1661,8 +1661,8 @@ bool PaceBmsProtocolV20::ProcessReadStatusInformationResponse_SEPLOS(const uint8
 	// reserved 1-6
 	byteOffset += 12; // 6 one byte values as two byte hexascii
 
-	if (byteOffset != payloadLen + 13)
-		LogWarning("Length mismatch reading status information response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off");
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET)
+		LogWarning("Length mismatch reading status information response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off");
 
 	// pop off any trailing "; " separator
 	if (statusInformation.warningText.length() > 2)
@@ -1708,7 +1708,7 @@ bool PaceBmsProtocolV20::ProcessReadStatusInformationResponse_EG4(const uint8_t 
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	uint8_t data_flag = ReadHexEncodedByte(response, byteOffset);
 	//if (data_flag != 0)
@@ -1818,8 +1818,8 @@ bool PaceBmsProtocolV20::ProcessReadStatusInformationResponse_EG4(const uint8_t 
 	// "reserved"
 	byteOffset += 2;
 
-	if (byteOffset != payloadLen + 13)
-		LogWarning("Length mismatch reading status information response: " + std::to_string(payloadLen + 13 - byteOffset) + " bytes off");
+	if (byteOffset != payloadLen + PAYLOAD_START_OFFSET)
+		LogWarning("Length mismatch reading status information response: " + std::to_string(payloadLen + PAYLOAD_START_OFFSET - byteOffset) + " bytes off");
 
 	// pop off any trailing "; " separator
 	if (statusInformation.warningText.length() > 2)
@@ -1876,7 +1876,7 @@ bool PaceBmsProtocolV20::ProcessReadHardwareVersionResponse(const uint8_t busId,
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	if (payloadLen != 64)
 	{
@@ -1934,7 +1934,7 @@ bool PaceBmsProtocolV20::ProcessReadSerialNumberResponse(const uint8_t busId, st
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	if (payloadLen != 80 && payloadLen != 32)
 	{
@@ -2004,7 +2004,7 @@ bool PaceBmsProtocolV20::ProcessWriteShutdownCommandResponse(const uint8_t busId
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	if (payloadLen != 0)
 	{
@@ -2038,7 +2038,7 @@ bool PaceBmsProtocolV20::ProcessReadSystemDateTimeResponse(const uint8_t busId, 
 	}
 
 	// payload starts here, everything else was validated by the initial call to ValidateResponseAndGetPayloadLength
-	uint16_t byteOffset = 13;
+	uint16_t byteOffset = PAYLOAD_START_OFFSET;
 
 	dateTime.Year = ReadHexEncodedUShort(response, byteOffset);
 	dateTime.Month = ReadHexEncodedByte(response, byteOffset);
