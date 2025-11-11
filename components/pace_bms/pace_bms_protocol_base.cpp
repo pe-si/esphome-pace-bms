@@ -395,14 +395,14 @@ int16_t PaceBmsProtocolBase::ValidateResponseAndGetPayloadLength(const uint8_t b
 	// in the response to make sure we don't run past the end of the buffer
 	if (response.size() < 18)
 	{
-		logError("Response is truncated, even a response without payload should be 18 bytes long");
+		logError("Response is truncated at " + std::to_string(response.size()) + " bytes, even a response without payload should be 18 bytes long");
 		return -1;
 	}
 
 	// SOI
 	if (response[byteOffset++] != '~')
 	{
-		logError("Response does not begin with SOI marker");
+		logError("Response does not begin with SOI marker '~'");
 		return -1;
 	}
 
@@ -413,7 +413,7 @@ int16_t PaceBmsProtocolBase::ValidateResponseAndGetPayloadLength(const uint8_t b
 		target_ver = this->protocol_version.value();
 	if (ver != target_ver)
 	{
-		logError("Response has wrong protocol version number");
+		logError("Response has wrong protocol version number, got " + std::to_string(ver) + ", expected " + std::to_string(target_ver));
 		return -1;
 	}
 
@@ -424,7 +424,7 @@ int16_t PaceBmsProtocolBase::ValidateResponseAndGetPayloadLength(const uint8_t b
 	uint8_t addr = ReadHexEncodedByte(response, byteOffset);
 	if (addr != expected_addr)
 	{
-		logError("Response from wrong bus Id in header, expected " + std::to_string(expected_addr) + " but got " + std::to_string(addr));
+		logError("Response from wrong bus Id in header, got " + std::to_string(addr) + ", expected " + std::to_string(expected_addr));
 		return -1;
 	}
 
@@ -432,7 +432,7 @@ int16_t PaceBmsProtocolBase::ValidateResponseAndGetPayloadLength(const uint8_t b
 	uint8_t cid = ReadHexEncodedByte(response, byteOffset);
 	if (cid != cid1)
 	{
-		logError("Response has wrong CID1 (battery chemistry)");
+		logError("Response has wrong CID1 (battery chemistry), got " + std::to_string(cid) + ", expected " + std::to_string(cid1));
 		return -1;
 	}
 
@@ -448,7 +448,7 @@ int16_t PaceBmsProtocolBase::ValidateResponseAndGetPayloadLength(const uint8_t b
 	uint16_t cklen = ReadHexEncodedUShort(response, byteOffset);
 	if (!ValidateChecksummedLength(cklen))
 	{
-		logError("Response contains an incorrect payload length checksum, ignoring since this is a known firmware bug");
+		logError("Response contains an incorrect payload length checksum");
 		return -1;
 	}
 
@@ -457,12 +457,12 @@ int16_t PaceBmsProtocolBase::ValidateResponseAndGetPayloadLength(const uint8_t b
 	// check payload length
 	if ((uint16_t)response.size() < payloadLen + 18)
 	{
-		logError("Response is truncated, should be 18 bytes + decoded payload length");
+		logError("Response is truncated at " + std::to_string(response.size()) + " bytes, should be 18 bytes + decoded payload length = " + std::to_string(payloadLen + 18) + " bytes");
 		return -1;
 	}
 	if ((uint16_t)response.size() > payloadLen + 18)
 	{
-		logError("Response is oversize");
+		logError("Response is oversize at " + std::to_string(response.size()) + " bytes, should be 18 bytes + decoded payload length = " + std::to_string(payloadLen + 18) + " bytes");
 		return -1;
 	}
 
@@ -478,7 +478,7 @@ int16_t PaceBmsProtocolBase::ValidateResponseAndGetPayloadLength(const uint8_t b
 
 	if (response[byteOffset++] != '\r')
 	{
-		logError("Response does not end with EOI marker");
+		logError("Response does not end with EOI marker (carriage return)");
 		return -1;
 	}
 

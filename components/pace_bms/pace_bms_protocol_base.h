@@ -115,7 +115,7 @@ protected:
 	// decode a 'real' int16_t from the stream by reading four ASCII hex encoded bytes
 	int16_t ReadHexEncodedSShort(const std::span<uint8_t>& data, uint16_t& dataOffset, bool quietMode = false);
 
-	// decode a 'real' uint32_t from the stream by reading four ASCII hex encoded bytes
+	// decode a 'real' uint32_t from the stream by reading eight ASCII hex encoded bytes
 	uint32_t ReadHexEncodedULong(const std::span<uint8_t>& data, uint16_t& dataOffset, bool quietMode = false);
 
 	// encode a 'real' byte to the stream by writing two ASCII hex encoded bytes
