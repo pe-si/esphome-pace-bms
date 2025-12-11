@@ -1328,6 +1328,6 @@ public:
 [10:30:32.102][D][uart_debug:114]: <<< 7E:32:35:30:45:34:36:39:30:30:30:30:30:46:44:39:31:0D
 [10:30:32.260][D][uart_debug:114]: <<< 7E:32:35:30:46:34:36:39:30:30:30:30:30:46:44:39:30:0D
 
-It's obviously a bit more difficult to determine who is talking, because RS485 is only half-duplex, but shared medium. I guess it can be determined a bit from the timing, perhaps? It does look like there is a regular poll to see if there are any other packs which can respond, as well as a more verbose query.
+"It's obviously a bit more difficult to determine who is talking, because RS485 is only half-duplex, but shared medium. I guess it can be determined a bit from the timing, perhaps? It does look like there is a regular poll to see if there are any other packs which can respond, as well as a more verbose query."
 
 */
