@@ -119,6 +119,10 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 	//       note that this would also offset the temperature count lookahead... if someone submits logs for such a variant I will implement that, but don't 
 	//       see a need to complicate things right now other than general principle
 	uint16_t snoopOffset = PAYLOAD_START_OFFSET + 70; // 83
+	if(payloadLen < REGULAR_ANALOG_INFORMATION_PAYLOAD_SIZE)
+	{
+		snoopOffset -= 4; // 79
+	}
 	uint8_t lookAhead_TemperatureCount = ReadHexEncodedByte(response, snoopOffset, quietMode);
 	if(lookAhead_TemperatureCount != 6 && lookAhead_TemperatureCount != 8)
 	{
@@ -127,6 +131,10 @@ bool PaceBmsProtocolV25::ProcessReadAnalogInformationResponse(const uint8_t busI
 	// calculate offset to the UserDefinedValue based on the temperature count
 	// the normal temperature count is 6, but Eenovance/Sunsynk have 8 temperature readings so the offset is advanced by an extra 8 bytes, gotta love that vendor lock in!
 	snoopOffset = PAYLOAD_START_OFFSET + 84 + (lookAhead_TemperatureCount * 4); // 121 for 6 temps, or, 129 for 8 temps
+	if(payloadLen < REGULAR_ANALOG_INFORMATION_PAYLOAD_SIZE)
+	{
+		snoopOffset -= 4; // 117 for 6 temps, or 125 for 8 temps
+	}
 	uint8_t lookAhead_AnalogInformationUserDefinedValue = ReadHexEncodedByte(response, snoopOffset, quietMode);
 	currentProtocolVariant = GetProtocolVariantInfo(lookAhead_AnalogInformationUserDefinedValue);
 	bool using_default_fallback_variant = false;
