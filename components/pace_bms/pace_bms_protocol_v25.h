@@ -3,6 +3,7 @@
 #include "pace_bms_protocol_base.h"
 
 const uint8_t MINIMUM_ANALOG_INFORMATION_PAYLOAD_SIZE = 118; //was 122 UserDefinedValue = 3, the baseline PACE firmware version
+const uint8_t REGULAR_ANALOG_INFORMATION_PAYLOAD_SIZE = 122;
 
 class PaceBmsProtocolV25 : public PaceBmsProtocolBase
 {
